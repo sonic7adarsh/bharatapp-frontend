@@ -108,14 +108,23 @@ export default function RoomBooking() {
     setLoading(true)
     setError('')
     try {
-      const totals = availability ? {
-        perNight: availability.base,
-        nights: availability.nights,
-        subtotal: availability.subtotal,
-        taxes: availability.taxes,
-        fees: availability.fees,
-        payable: availability.total
-      } : { perNight: Number(room.price) || 0, nights, payable: (Number(room.price) || 0) * nights }
+      const totals = availability ? (() => {
+        const nightsLocal = availability.nights || 1
+        const mattressFee = (availability.extraMattressAllowed ? (availability.extraMattressCount || 0) * (availability.mattressFeePerNight || 0) * nightsLocal : 0)
+        const baseSubtotal = Number(availability.subtotal || 0)
+        const adjustedSubtotal = Math.max(0, baseSubtotal - mattressFee)
+        const adjustedTaxes = Math.round(adjustedSubtotal * 0.10)
+        const adjustedFees = Math.round(adjustedSubtotal * 0.05)
+        const adjustedTotal = adjustedSubtotal + adjustedTaxes + adjustedFees
+        return {
+          perNight: availability.base,
+          nights: availability.nights,
+          subtotal: adjustedSubtotal,
+          taxes: adjustedTaxes,
+          fees: adjustedFees,
+          payable: adjustedTotal
+        }
+      })() : { perNight: Number(room.price) || 0, nights, payable: (Number(room.price) || 0) * nights }
       const payload = {
         type: 'room_booking',
         store: { id: storeId, name: store.name },
@@ -306,16 +315,7 @@ export default function RoomBooking() {
             </div>
           )}
           {/* summary moved to separate sticky card */}
-            {step === 1 && (
-              <div className="mt-3 text-center">
-                <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
-              </div>
-            )}
-            {step === 2 && (
-              <div className="mt-3 text-center">
-                <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
-              </div>
-            )}
+            {/* Back to Store link removed as requested */}
           </div>
           {/* Sticky Summary */}
           <div className="bg-white rounded-xl shadow-md border p-4 md:sticky md:top-24">
@@ -346,21 +346,34 @@ export default function RoomBooking() {
                       {availability.roomsGuests.map((g, i) => (
                         <li key={i} className="flex justify-between">
                           <span>Room {i + 1}</span>
-                          <span className="font-semibold">{g} guest{g > 1 ? 's' : ''}{availability.extraMattressAllowed && g === 3 ? ' + extra mattress' : ''}</span>
+                          <span className="font-semibold">{g} guest{g > 1 ? 's' : ''}{availability.extraMattressAllowed && g === 3 ? ' + extra mattress (free)' : ''}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
                 {availability.extraMattressAllowed && (
-                  <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹{availability.mattressFeePerNight}/night</span></div>
+                  <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹0/night (free)</span></div>
                 )}
-                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{availability.base}</span></div>
-                <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{availability.nights}</span></div>
-                <div className="flex justify-between"><span>Subtotal</span><span className="font-semibold">₹{availability.subtotal}</span></div>
-                <div className="flex justify-between"><span>Taxes (10%)</span><span className="font-semibold">₹{availability.taxes}</span></div>
-                <div className="flex justify-between"><span>Service fee (5%)</span><span className="font-semibold">₹{availability.fees}</span></div>
-                <div className="flex justify-between pt-2 border-t"><span>Total payable</span><span className="text-xl font-bold text-brand-accent">₹{availability.total}</span></div>
+                {(() => {
+                  const nightsLocal = availability.nights || 1
+                  const mattressFee = (availability.extraMattressAllowed ? (availability.extraMattressCount || 0) * (availability.mattressFeePerNight || 0) * nightsLocal : 0)
+                  const baseSubtotal = Number(availability.subtotal || 0)
+                  const adjustedSubtotal = Math.max(0, baseSubtotal - mattressFee)
+                  const adjustedTaxes = Math.round(adjustedSubtotal * 0.10)
+                  const adjustedFees = Math.round(adjustedSubtotal * 0.05)
+                  const adjustedTotal = adjustedSubtotal + adjustedTaxes + adjustedFees
+                  return (
+                    <>
+                      <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{availability.base}</span></div>
+                      <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{availability.nights}</span></div>
+                      <div className="flex justify-between"><span>Subtotal</span><span className="font-semibold">₹{adjustedSubtotal}</span></div>
+                      <div className="flex justify-between"><span>Taxes (10%)</span><span className="font-semibold">₹{adjustedTaxes}</span></div>
+                      <div className="flex justify-between"><span>Service fee (5%)</span><span className="font-semibold">₹{adjustedFees}</span></div>
+                      <div className="flex justify-between pt-2 border-t"><span>Total payable</span><span className="text-xl font-bold text-brand-accent">₹{adjustedTotal}</span></div>
+                    </>
+                  )
+                })()}
               </>
             ) : (
               <>
