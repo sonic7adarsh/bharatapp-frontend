@@ -109,9 +109,8 @@ export default function StoreDetail() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{store.name}</h1>
             <p className="text-gray-600 mt-1">{store.category}</p>
-            <div className="mt-2 flex items-center">
-              <span className="text-yellow-500 mr-1">⭐</span>
-              <span className="font-medium">{store.rating || '4.5'}</span>
+            <div className="mt-2">
+              <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store.rating !== 'undefined' ? store.rating : 4.5).toFixed(1)}</span>
             </div>
             <p className="mt-3 text-gray-700">
               {store.address || store.area || 'Location information not available'}

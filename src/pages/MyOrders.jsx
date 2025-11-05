@@ -86,20 +86,24 @@ export default function MyOrders() {
             }
             return (
               <div key={order.id || order.reference || Math.random()} className="bg-white p-4 rounded-lg shadow-sm">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-start">
                   <div>
                     <div className="font-semibold">
                       <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="text-indigo-600 hover:text-indigo-800">
                         Order {order.reference || order.id || ''}
                       </Link>
                     </div>
-                    <div className="text-sm text-gray-600">{dateStr}</div>
+                    <div className="mt-1 flex items-center gap-2 text-xs">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📅 {dateStr}</span>
+                      {order.total != null && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">₹{Number(order.total).toFixed(2)}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="font-medium">{order.status || 'Pending'}</div>
+                  <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium min-w-[90px] ${isDelivered ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {order.status || 'Pending'}
+                  </span>
                 </div>
-                {order.total != null && (
-                  <div className="mt-2 text-gray-700">Total: ₹{Number(order.total).toFixed(2)}</div>
-                )}
                 {/* Tracking timeline */}
                 <div className="mt-3">
                   <div className="flex items-center">
