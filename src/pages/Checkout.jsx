@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import orderService from '../services/orderService'
 import useCart from '../context/CartContext'
 import paymentService from '../services/paymentService'
@@ -10,15 +10,17 @@ import { FREE_DELIVERY_THRESHOLD, DELIVERY_FEE_DEFAULT, SERVICEABLE_PINCODES } f
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart()
   const location = useLocation()
-  const method = useMemo(() => {
+  const navigate = useNavigate()
+  const [method, setMethod] = useState('cod')
+  useEffect(() => {
     const params = new URLSearchParams(location.search)
-    if (params.get('method')) return params.get('method')
-    try {
-      return localStorage.getItem('checkout_method') || 'cod'
-    } catch {
-      return 'cod'
+    let next = params.get('method')
+    if (!next) {
+      try { next = localStorage.getItem('checkout_method') || 'cod' } catch {}
     }
-  }, [location.search])
+    setMethod(next === 'online' ? 'online' : 'cod')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -42,18 +44,28 @@ export default function Checkout() {
 
   // Allow switching payment method inline for better UX
   const setPaymentMethod = (m) => {
-    try { localStorage.setItem('checkout_method', m) } catch {}
+    const normalized = m === 'online' ? 'online' : 'cod'
+    setMethod(normalized)
+    try { localStorage.setItem('checkout_method', normalized) } catch {}
     const params = new URLSearchParams(location.search)
-    params.set('method', m)
-    const qs = params.toString()
-    window.history.replaceState({}, '', `/checkout${qs ? `?${qs}` : ''}`)
+    params.set('method', normalized)
+    navigate({ pathname: '/checkout', search: params.toString() }, { replace: true })
   }
 
+  const [addressMode, setAddressMode] = useState('saved') // 'saved' | 'new'
   useEffect(() => {
     try {
       const raw = localStorage.getItem('saved_addresses')
       const arr = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
       setSavedAddresses(arr)
+      if (arr.length > 0) {
+        setSelectedSavedIndex('0')
+        setAddress(arr[0])
+        setAddressMode('saved')
+      } else {
+        setSelectedSavedIndex('')
+        setAddressMode('new')
+      }
     } catch {}
   }, [])
 
@@ -141,6 +153,7 @@ export default function Checkout() {
       setSavedAddresses(next)
       localStorage.setItem('saved_addresses', JSON.stringify(next))
       setSelectedSavedIndex(String(next.length - 1))
+      setAddressMode('saved')
       toast.success('Address saved')
     } catch {}
   }
@@ -159,7 +172,15 @@ export default function Checkout() {
     const next = savedAddresses.filter((_, i) => i !== idx)
     setSavedAddresses(next)
     try { localStorage.setItem('saved_addresses', JSON.stringify(next)) } catch {}
-    setSelectedSavedIndex('')
+    if (next.length > 0) {
+      setSelectedSavedIndex('0')
+      setAddress(next[0])
+      setAddressMode('saved')
+    } else {
+      setSelectedSavedIndex('')
+      setAddress({ name: '', phone: '', line1: '', line2: '', city: '', pincode: '' })
+      setAddressMode('new')
+    }
     toast.info('Saved address removed')
   }
 
@@ -187,7 +208,7 @@ export default function Checkout() {
     const params = new URLSearchParams(location.search)
     params.delete('promo'); params.delete('coupon')
     const qs = params.toString()
-    window.history.replaceState({}, '', `/checkout${qs ? `?${qs}` : ''}`)
+    navigate({ pathname: '/checkout', search: qs }, { replace: true })
   }
 
   const placeOrder = async () => {
@@ -392,40 +413,71 @@ export default function Checkout() {
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b font-semibold">Delivery Address</div>
             <div className="p-4 space-y-3">
-              {savedAddresses.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedSavedIndex}
-                    onChange={e => selectSavedAddress(e.target.value)}
-                    className="border rounded px-3 py-2 flex-1 text-sm"
-                  >
-                    <option value="">Select saved address</option>
-                    {savedAddresses.map((a, idx) => (
-                      <option key={idx} value={String(idx)}>{a.name} — {a.line1}, {a.city} {a.pincode}</option>
-                    ))}
-                  </select>
-                  <button type="button" onClick={deleteSavedAddress} disabled={selectedSavedIndex === ''} className="px-3 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200">Delete</button>
-                </div>
+              {/* Mode toggle: Use saved vs Add new */}
+              <div className="inline-flex items-center rounded-full border px-2 py-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => savedAddresses.length > 0 && setAddressMode('saved')}
+                  className={`px-2 py-0.5 rounded ${addressMode === 'saved' && savedAddresses.length > 0 ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'} ${savedAddresses.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >Use saved</button>
+                <button
+                  type="button"
+                  onClick={() => setAddressMode('new')}
+                  className={`ml-1 px-2 py-0.5 rounded ${addressMode === 'new' ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                >Add new</button>
+              </div>
+
+              {/* Saved address selector */}
+              {addressMode === 'saved' && savedAddresses.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedSavedIndex}
+                      onChange={e => selectSavedAddress(e.target.value)}
+                      className="border rounded px-3 py-2 flex-1 text-sm"
+                    >
+                      <option value="">Select saved address</option>
+                      {savedAddresses.map((a, idx) => (
+                        <option key={idx} value={String(idx)}>{a.name} — {a.line1}, {a.city} {a.pincode}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={deleteSavedAddress} disabled={selectedSavedIndex === ''} className="px-3 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200">Delete</button>
+                  </div>
+                  {selectedSavedIndex !== '' && (
+                    <div className="text-sm text-gray-700 bg-gray-50 rounded px-3 py-2">
+                      <div className="font-medium">{address.name}</div>
+                      <div>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</div>
+                      <div>{address.city} — {address.pincode}</div>
+                      <div>📞 {address.phone}</div>
+                    </div>
+                  )}
+                </>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input value={address.name} onChange={e => setAddress(a => ({...a, name: e.target.value}))} placeholder="Full Name" className="border rounded px-3 py-2" />
-                <input value={address.phone} onChange={e => setAddress(a => ({...a, phone: e.target.value}))} placeholder="Phone (10 digits)" className={`border rounded px-3 py-2 ${address.phone && !isValidPhone(address.phone) ? 'border-red-400' : ''}`} />
-                <input value={address.line1} onChange={e => setAddress(a => ({...a, line1: e.target.value}))} placeholder="Address line 1" className="border rounded px-3 py-2 md:col-span-2" />
-                <input value={address.line2} onChange={e => setAddress(a => ({...a, line2: e.target.value}))} placeholder="Address line 2 (optional)" className="border rounded px-3 py-2 md:col-span-2" />
-                <input value={address.city} onChange={e => setAddress(a => ({...a, city: e.target.value}))} placeholder="City" className="border rounded px-3 py-2" />
-                <input value={address.pincode} onChange={e => setAddress(a => ({...a, pincode: e.target.value}))} placeholder="Pincode (6 digits)" className={`border rounded px-3 py-2 ${address.pincode && (!isValidPincode(address.pincode) || !isServiceablePincode(address.pincode)) ? 'border-red-400' : ''}`} />
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={saveCurrentAddress} className="px-3 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200">Save this address</button>
-                {!isServiceablePincode(address.pincode) && isValidPincode(address.pincode) && (
-                  <span className="text-sm text-red-600">Looks outside our delivery zone. Try another address or pincode.</span>
-                )}
-                {Array.isArray(SERVICEABLE_PINCODES) && SERVICEABLE_PINCODES.length > 0 && isValidPincode(address.pincode) && isServiceablePincode(address.pincode) && (
-                  <span className="text-sm text-green-700">Serviceable area ✔</span>
-                )}
-              </div>
+
+              {/* New address form */}
+              {addressMode === 'new' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input value={address.name} onChange={e => setAddress(a => ({...a, name: e.target.value}))} placeholder="Full Name" className="border rounded px-3 py-2" />
+                    <input value={address.phone} onChange={e => setAddress(a => ({...a, phone: e.target.value}))} placeholder="Phone (10 digits)" className={`border rounded px-3 py-2 ${address.phone && !isValidPhone(address.phone) ? 'border-red-400' : ''}`} />
+                    <input value={address.line1} onChange={e => setAddress(a => ({...a, line1: e.target.value}))} placeholder="Address line 1" className="border rounded px-3 py-2 md:col-span-2" />
+                    <input value={address.line2} onChange={e => setAddress(a => ({...a, line2: e.target.value}))} placeholder="Address line 2 (optional)" className="border rounded px-3 py-2 md:col-span-2" />
+                    <input value={address.city} onChange={e => setAddress(a => ({...a, city: e.target.value}))} placeholder="City" className="border rounded px-3 py-2" />
+                    <input value={address.pincode} onChange={e => setAddress(a => ({...a, pincode: e.target.value}))} placeholder="Pincode (6 digits)" className={`border rounded px-3 py-2 ${address.pincode && (!isValidPincode(address.pincode) || !isServiceablePincode(address.pincode)) ? 'border-red-400' : ''}`} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={saveCurrentAddress} className="px-3 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200">Save this address</button>
+                    {!isServiceablePincode(address.pincode) && isValidPincode(address.pincode) && (
+                      <span className="text-sm text-red-600">Looks outside our delivery zone. Try another address or pincode.</span>
+                    )}
+                    {Array.isArray(SERVICEABLE_PINCODES) && SERVICEABLE_PINCODES.length > 0 && isValidPincode(address.pincode) && isServiceablePincode(address.pincode) && (
+                      <span className="text-sm text-green-700">Serviceable area ✔</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
 
           {/* Prescription Upload (Pharmacy) */}
           {requiresPrescription && (
