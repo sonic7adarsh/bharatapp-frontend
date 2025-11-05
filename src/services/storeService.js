@@ -51,7 +51,7 @@ const storeService = {
     }
     return generateProducts(6)
   },
-  async checkRoomAvailability({ storeId, roomId, checkIn, checkOut, guests = 1 }) {
+  async checkRoomAvailability({ storeId, roomId, checkIn, checkOut, guests = 1, roomsGuests = undefined }) {
     // Try backend if available
     try {
       const res = await api.get('/api/availability', {
@@ -74,11 +74,23 @@ const storeService = {
     const roomName = String(room?.name || '').toLowerCase()
     const extraMattressAllowed = /deluxe|suite|business|club|premier/.test(roomName) || roomName.includes('family')
     const perRoomMax = extraMattressAllowed ? 3 : 2
-    const roomsRequired = Math.ceil(Math.max(1, guests) / perRoomMax)
-    const extraMattressCount = extraMattressAllowed ? Math.max(0, Math.min(roomsRequired, Math.ceil(Math.max(0, guests - roomsRequired * 2)))) : 0
-    // Reject if any single room would exceed 3 guests
-    if (guests > 0 && Math.ceil(guests / roomsRequired) > 3) {
-      return { available: false, reason: 'Not more than 3 guests allowed per room' }
+    let roomsRequired = Math.ceil(Math.max(1, guests) / perRoomMax)
+    let extraMattressCount = 0
+    if (Array.isArray(roomsGuests) && roomsGuests.length > 0) {
+      roomsRequired = roomsGuests.length
+      // Validate each room capacity
+      for (const g of roomsGuests) {
+        if (g < 1 || g > perRoomMax) {
+          return { available: false, reason: 'Invalid room allocation: max ' + perRoomMax + ' guests per room' }
+        }
+      }
+      extraMattressCount = extraMattressAllowed ? roomsGuests.filter(g => g === 3).length : 0
+    } else {
+      extraMattressCount = extraMattressAllowed ? Math.max(0, Math.min(roomsRequired, Math.ceil(Math.max(0, guests - roomsRequired * 2)))) : 0
+      // Reject if any single room would exceed 3 guests
+      if (guests > 0 && Math.ceil(guests / roomsRequired) > 3) {
+        return { available: false, reason: 'Not more than 3 guests allowed per room' }
+      }
     }
     // Weekend surcharge mock
     const isWeekend = [0, 6].includes(start.getDay()) || [0, 6].includes(end.getDay())
@@ -100,6 +112,7 @@ const storeService = {
       extraMattressAllowed,
       extraMattressCount,
       mattressFeePerNight,
+      roomsGuests: Array.isArray(roomsGuests) ? roomsGuests : undefined,
       subtotal: Math.round(subtotal),
       taxes: Math.round(taxes),
       fees: Math.round(fees),

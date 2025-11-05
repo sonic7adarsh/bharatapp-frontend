@@ -17,6 +17,7 @@ export default function RoomBooking() {
     const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0,10)
   })
   const [guests, setGuests] = useState(1)
+  const [roomsGuests, setRoomsGuests] = useState([1])
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [notes, setNotes] = useState('')
@@ -59,6 +60,48 @@ export default function RoomBooking() {
     }
   }, [isAuthenticated, user])
 
+  useEffect(() => {
+    const total = roomsGuests.reduce((a, b) => a + b, 0)
+    setGuests(total)
+  }, [roomsGuests])
+
+  const incTotal = () => {
+    setRoomsGuests(prev => {
+      const next = [...prev]
+      const i = next.length - 1
+      if (next[i] < 3) next[i] += 1
+      else next.push(1)
+      return next
+    })
+  }
+
+  const decTotal = () => {
+    setRoomsGuests(prev => {
+      const next = [...prev]
+      const i = next.length - 1
+      if (next[i] > 1) next[i] -= 1
+      else if (next.length > 1) next.pop()
+      return next.length === 0 ? [1] : next
+    })
+  }
+
+  const incRoom = (idx) => {
+    setRoomsGuests(prev => {
+      const next = [...prev]
+      if (next[idx] < 3) next[idx] += 1
+      return next
+    })
+  }
+
+  const decRoom = (idx) => {
+    setRoomsGuests(prev => {
+      const next = [...prev]
+      if (next[idx] > 1) next[idx] -= 1
+      else if (next.length > 1) next.splice(idx, 1)
+      return next.length === 0 ? [1] : next
+    })
+  }
+
   if (!store || !room) {
     return (
       <PageFade className="max-w-3xl mx-auto px-4 py-6">
@@ -99,7 +142,8 @@ export default function RoomBooking() {
           perRoomMax: availability?.perRoomMax || 3,
           extraMattressAllowed: !!availability?.extraMattressAllowed,
           extraMattressCount: availability?.extraMattressCount || 0,
-          mattressFeePerNight: availability?.mattressFeePerNight || 0
+          mattressFeePerNight: availability?.mattressFeePerNight || 0,
+          roomsGuests
         },
         guest: { name, phone },
         notes,
@@ -141,7 +185,8 @@ export default function RoomBooking() {
         roomId,
         checkIn,
         checkOut,
-        guests
+        guests,
+        roomsGuests
       })
       if (!res?.available) {
         setAvailability(null)
@@ -225,11 +270,30 @@ export default function RoomBooking() {
                 <label className="block text-sm font-medium mb-1">Check-out</label>
                 <input type="date" value={checkOut} min={minCheckOut} onChange={e => setCheckOut(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Guests</label>
-                <input type="number" min="1" value={guests} onChange={e => setGuests(Math.max(1, Number(e.target.value) || 1))} className="border rounded px-3 py-2 w-full" disabled={loading} />
-                <p className="mt-1 text-xs text-gray-600">Max 3 guests per room. If more than 3 guests, additional room will be added automatically. Extra mattress provided when allowed.</p>
+          <div>
+            <label className="block text-sm font-medium mb-1">Guests</label>
+            <div className="flex items-center justify-between">
+              <div className="inline-flex items-center rounded-md bg-brand-muted text-brand-accent px-2 py-1">
+                <button type="button" onClick={decTotal} className="px-3 py-1 text-lg font-bold hover:bg-orange-100 rounded-l-md" disabled={loading}>-</button>
+                <span className="px-3 text-sm">{guests} guest{guests > 1 ? 's' : ''}</span>
+                <button type="button" onClick={incTotal} className="px-3 py-1 text-lg font-bold hover:bg-orange-100 rounded-r-md" disabled={loading}>+</button>
               </div>
+              <span className="text-xs text-gray-600">Max 3 guests per room</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {roomsGuests.map((g, idx) => (
+                <div key={idx} className="flex items-center justify-between border rounded-md px-3 py-2">
+                  <span className="text-sm font-medium">Room {idx + 1}</span>
+                  <div className="inline-flex items-center rounded-md bg-gray-50 border">
+                    <button type="button" onClick={() => decRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading}>-</button>
+                    <span className="px-3 text-sm">{g} guest{g > 1 ? 's' : ''}</span>
+                    <button type="button" onClick={() => incRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading || g >= 3}>+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-600">When a room has 3 guests, an extra mattress is added if allowed. Adding beyond 3 creates a new room row automatically.</p>
+          </div>
               <PressScale className="inline-block">
                 <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability}>
                   {checkingAvailability ? 'Checking availability...' : 'Check availability'}
@@ -266,11 +330,24 @@ export default function RoomBooking() {
                 <div className="mb-2 bg-green-50 text-green-700 border border-green-200 rounded px-3 py-2">
                   Room available for your dates.
                 </div>
-                <div className="flex justify-between"><span>Rooms required</span><span className="font-semibold">{availability.rooms}</span></div>
-                <div className="flex justify-between"><span>Max guests per room</span><span className="font-semibold">{availability.perRoomMax}</span></div>
-                {availability.extraMattressAllowed && (
-                  <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹{availability.mattressFeePerNight}/night</span></div>
-                )}
+              <div className="flex justify-between"><span>Rooms required</span><span className="font-semibold">{availability.rooms}</span></div>
+              <div className="flex justify-between"><span>Max guests per room</span><span className="font-semibold">{availability.perRoomMax}</span></div>
+              {Array.isArray(availability.roomsGuests) && availability.roomsGuests.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-sm font-medium mb-1">Room allocation</div>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {availability.roomsGuests.map((g, i) => (
+                      <li key={i} className="flex justify-between">
+                        <span>Room {i + 1}</span>
+                        <span className="font-semibold">{g} guest{g > 1 ? 's' : ''}{availability.extraMattressAllowed && g === 3 ? ' + extra mattress' : ''}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {availability.extraMattressAllowed && (
+                <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹{availability.mattressFeePerNight}/night</span></div>
+              )}
                 <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{availability.base}</span></div>
                 <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{availability.nights}</span></div>
                 <div className="flex justify-between"><span>Subtotal</span><span className="font-semibold">₹{availability.subtotal}</span></div>
