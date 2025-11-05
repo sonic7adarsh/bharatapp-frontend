@@ -40,6 +40,15 @@ export default function Checkout() {
     return Math.round(base * taxRate)
   }, [totalPrice, discount, deliveryFee, taxRate])
 
+  // Allow switching payment method inline for better UX
+  const setPaymentMethod = (m) => {
+    try { localStorage.setItem('checkout_method', m) } catch {}
+    const params = new URLSearchParams(location.search)
+    params.set('method', m)
+    const qs = params.toString()
+    window.history.replaceState({}, '', `/checkout${qs ? `?${qs}` : ''}`)
+  }
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('saved_addresses')
@@ -349,6 +358,22 @@ export default function Checkout() {
   return (
     <PageFade className="max-w-3xl mx-auto px-4 py-6">
       <h2 className="text-2xl font-bold">Checkout</h2>
+      {/* Status summary for a professional feel */}
+      {items.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${isAddressValid() ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isAddressValid() ? 'Address ✔' : 'Address incomplete'}
+          </span>
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${deliverySlot ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+            {deliverySlot ? 'Slot selected' : 'Select delivery slot'}
+          </span>
+          {requiresPrescription && (
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${prescriptions.length > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {prescriptions.length > 0 ? 'Prescription attached' : 'Prescription required'}
+            </span>
+          )}
+        </div>
+      )}
       {items.length === 0 ? (
         <div className="mt-4 bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
           <p>Your cart is empty.</p>
@@ -505,7 +530,21 @@ export default function Checkout() {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-4 border-b font-semibold">Order Summary</div>
+          <div className="p-4 border-b font-semibold flex items-center justify-between">
+            <span>Order Summary</span>
+            <div className="inline-flex items-center rounded-full border px-2 py-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cod')}
+                className={`px-2 py-0.5 rounded ${method === 'cod' ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+              >COD</button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('online')}
+                className={`ml-1 px-2 py-0.5 rounded ${method === 'online' ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+              >Online</button>
+            </div>
+          </div>
             <div className="p-4 space-y-3">
               <div className="flex justify-between items-center">
                 <div className="text-sm text-gray-600">Payment Method</div>
@@ -549,7 +588,7 @@ export default function Checkout() {
               {Number(tip) > 0 && (
                 <div className="flex justify-between text-gray-700"><span>Tip</span><span>₹{Number(tip).toFixed(2)}</span></div>
               )}
-              <div className="flex justify-between pt-2 border-t"><span className="font-semibold">Payable</span><span className="text-xl font-bold">₹{computePayable().toFixed(2)}</span></div>
+              <div className="flex justify-between pt-2 border-t bg-brand-muted rounded px-3 py-2"><span className="font-semibold">Payable</span><span className="text-2xl font-bold text-brand-accent">₹{computePayable().toFixed(2)}</span></div>
               {discount > 0 ? (
                 <div className="text-sm text-green-700">You saved ₹{discount.toFixed(0)} with coupon {promo?.toUpperCase()}.</div>
               ) : null}

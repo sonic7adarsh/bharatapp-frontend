@@ -160,13 +160,29 @@ export default function Hotels() {
                   />
                 )}
                 <div className="p-4">
-                  <h2 className="text-xl font-semibold">{store.name}</h2>
-                  <p className="text-gray-600">{store.category || store.type}</p>
-                  {typeof store.rating !== 'undefined' && (
-                    <p className="text-yellow-600 text-sm mt-1">⭐ {store.rating}</p>
-                  )}
-                  <p className="text-gray-500 text-sm mt-1">{store.area || store.location}</p>
-                  <p className="text-gray-500 text-xs mt-1">Check today’s availability →</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold">{store.name}</h2>
+                      <p className="text-gray-600">{store.category || store.type}</p>
+                    </div>
+                    {typeof store.rating !== 'undefined' && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">⭐ {store.rating}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    {(store.area || store.location) && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.area || store.location}</span>
+                    )}
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">🏨 Hospitality</span>
+                  </div>
+                  <div className="mt-3 text-gray-500 text-xs">Check today’s availability →</div>
+                </div>
+                <div className="px-4 pb-4">
+                  <div className="mt-2 h-px bg-gray-100" />
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Explore rooms and amenities</span>
+                    <span className="inline-flex items-center text-brand-accent text-sm">View Rooms →</span>
+                  </div>
                 </div>
               </HoverLiftCard>
             </Link>

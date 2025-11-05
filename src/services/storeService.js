@@ -73,7 +73,8 @@ const storeService = {
     // Hospitality-specific capacity: base capacity 2, optional extra mattress to allow up to 3
     const roomName = String(room?.name || '').toLowerCase()
     const extraMattressAllowed = /deluxe|suite|business|club|premier/.test(roomName) || roomName.includes('family')
-    const perRoomMax = extraMattressAllowed ? 3 : 2
+    // Business rule: max 3 guests per room universally; 3rd guest implies extra mattress when allowed
+    const perRoomMax = 3
     let roomsRequired = Math.ceil(Math.max(1, guests) / perRoomMax)
     let extraMattressCount = 0
     if (Array.isArray(roomsGuests) && roomsGuests.length > 0) {
@@ -84,9 +85,12 @@ const storeService = {
           return { available: false, reason: 'Invalid room allocation: max ' + perRoomMax + ' guests per room' }
         }
       }
+      // Count an extra mattress for each room with 3 guests, only if allowed; capacity remains 3 regardless
       extraMattressCount = extraMattressAllowed ? roomsGuests.filter(g => g === 3).length : 0
     } else {
-      extraMattressCount = extraMattressAllowed ? Math.max(0, Math.min(roomsRequired, Math.ceil(Math.max(0, guests - roomsRequired * 2)))) : 0
+      // Approximate: base capacity 2 per room; any 3rd guest in a room implies extra mattress
+      const threeOccupancyRooms = Math.max(0, guests - roomsRequired * 2)
+      extraMattressCount = extraMattressAllowed ? Math.min(roomsRequired, threeOccupancyRooms) : 0
       // Reject if any single room would exceed 3 guests
       if (guests > 0 && Math.ceil(guests / roomsRequired) > 3) {
         return { available: false, reason: 'Not more than 3 guests allowed per room' }

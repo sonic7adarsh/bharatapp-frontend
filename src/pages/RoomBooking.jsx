@@ -211,6 +211,10 @@ export default function RoomBooking() {
     <PageFade className="max-w-4xl mx-auto px-4 py-6">
       <h2 className="text-2xl font-bold">Book: {room.name}</h2>
       <p className="text-gray-600 mt-1">{store.name} • {store.area}</p>
+      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${step === 1 ? 'bg-brand-muted text-brand-accent' : 'bg-gray-100 text-gray-700'}`}>Step 1: Dates & Guests</span>
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${step === 2 ? 'bg-brand-muted text-brand-accent' : 'bg-gray-100 text-gray-700'}`}>Step 2: Guest Details</span>
+      </div>
 
       {/* Gallery and Details */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -304,45 +308,7 @@ export default function RoomBooking() {
               </div>
             </div>
           )}
-          <div className="mt-4 border-t pt-3">
-            {availability ? (
-              <>
-                <div className="mb-2 bg-green-50 text-green-700 border border-green-200 rounded px-3 py-2">
-                  Room available for your dates.
-                </div>
-              <div className="flex justify-between"><span>Rooms required</span><span className="font-semibold">{availability.rooms}</span></div>
-              <div className="flex justify-between"><span>Max guests per room</span><span className="font-semibold">{availability.perRoomMax}</span></div>
-              {Array.isArray(availability.roomsGuests) && availability.roomsGuests.length > 0 && (
-                <div className="mt-2">
-                  <div className="text-sm font-medium mb-1">Room allocation</div>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {availability.roomsGuests.map((g, i) => (
-                      <li key={i} className="flex justify-between">
-                        <span>Room {i + 1}</span>
-                        <span className="font-semibold">{g} guest{g > 1 ? 's' : ''}{availability.extraMattressAllowed && g === 3 ? ' + extra mattress' : ''}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {availability.extraMattressAllowed && (
-                <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹{availability.mattressFeePerNight}/night</span></div>
-              )}
-                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{availability.base}</span></div>
-                <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{availability.nights}</span></div>
-                <div className="flex justify-between"><span>Subtotal</span><span className="font-semibold">₹{availability.subtotal}</span></div>
-                <div className="flex justify-between"><span>Taxes (10%)</span><span className="font-semibold">₹{availability.taxes}</span></div>
-                <div className="flex justify-between"><span>Service fee (5%)</span><span className="font-semibold">₹{availability.fees}</span></div>
-                <div className="flex justify-between"><span>Total payable</span><span className="font-bold">₹{availability.total}</span></div>
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{Number(room.price).toFixed(0)}</span></div>
-                <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{nights}</span></div>
-                <div className="flex justify-between"><span>Total</span><span className="font-bold">₹{((Number(room.price)||0) * nights).toFixed(0)}</span></div>
-              </>
-            )}
-          </div>
+          {/* summary moved to separate sticky card */}
           {step === 1 && (
             <div className="mt-3 text-center">
               <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
@@ -353,6 +319,53 @@ export default function RoomBooking() {
               <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
             </div>
           )}
+        </div>
+        {/* Sticky Summary */}
+        <div className="bg-white rounded-lg shadow-sm p-4 md:sticky md:top-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Your Stay</h3>
+            {availability ? (
+              <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs">Available</span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs">Estimate</span>
+            )}
+          </div>
+          <div className="mt-3 space-y-2">
+            {availability ? (
+              <>
+                <div className="flex justify-between"><span>Rooms required</span><span className="font-semibold">{availability.rooms}</span></div>
+                <div className="flex justify-between"><span>Max guests per room</span><span className="font-semibold">{availability.perRoomMax}</span></div>
+                {Array.isArray(availability.roomsGuests) && availability.roomsGuests.length > 0 && (
+                  <div className="mt-1">
+                    <div className="text-sm font-medium mb-1">Room allocation</div>
+                    <ul className="text-sm text-gray-700 space-y-1">
+                      {availability.roomsGuests.map((g, i) => (
+                        <li key={i} className="flex justify-between">
+                          <span>Room {i + 1}</span>
+                          <span className="font-semibold">{g} guest{g > 1 ? 's' : ''}{availability.extraMattressAllowed && g === 3 ? ' + extra mattress' : ''}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {availability.extraMattressAllowed && (
+                  <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹{availability.mattressFeePerNight}/night</span></div>
+                )}
+                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{availability.base}</span></div>
+                <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{availability.nights}</span></div>
+                <div className="flex justify-between"><span>Subtotal</span><span className="font-semibold">₹{availability.subtotal}</span></div>
+                <div className="flex justify-between"><span>Taxes (10%)</span><span className="font-semibold">₹{availability.taxes}</span></div>
+                <div className="flex justify-between"><span>Service fee (5%)</span><span className="font-semibold">₹{availability.fees}</span></div>
+                <div className="flex justify-between pt-2 border-t"><span>Total payable</span><span className="text-xl font-bold text-brand-accent">₹{availability.total}</span></div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{Number(room.price).toFixed(0)}</span></div>
+                <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{nights}</span></div>
+                <div className="flex justify-between pt-2 border-t"><span>Estimated total</span><span className="text-xl font-bold text-brand-accent">₹{((Number(room.price)||0) * nights).toFixed(0)}</span></div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </PageFade>
