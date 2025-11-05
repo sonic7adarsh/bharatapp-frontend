@@ -207,10 +207,7 @@ export default function RoomBooking() {
           <p className="mt-2">Your room has been booked successfully.</p>
         </div>
         <div className="mt-6 flex items-center space-x-4">
-          <PressScale className="inline-block">
-            <button onClick={() => navigate(`/store/${storeId}`)} className="btn-primary">Back to Store</button>
-          </PressScale>
-          <Link to="/" className="link-brand">Go Home</Link>
+          <Link to="/" className="btn-primary">Go Home</Link>
         </div>
       </PageFade>
     )
@@ -274,6 +271,7 @@ export default function RoomBooking() {
               <div>
                 <label className="block text-sm font-medium mb-1">Guests</label>
                 <div className="mt-1 text-xs text-gray-600">Max 3 guests per room. Use +/− per room; adding beyond 3 creates a new room.</div>
+                <div className="mt-1 inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs">Extra mattress included (free) when 3 guests in a room</div>
                 <div className="mt-3 space-y-2">
                   {roomsGuests.map((g, idx) => (
                     <div key={idx} className="flex items-center justify-between border rounded-md px-3 py-2">
