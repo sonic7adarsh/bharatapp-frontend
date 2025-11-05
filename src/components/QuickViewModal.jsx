@@ -124,7 +124,17 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
 
         {isHospitality && (
           <div className="mt-4 text-sm text-gray-700">
-            View room photos and full details, then book your stay.
+            <div className="font-semibold mb-2">Room Facilities</div>
+            <ul className="list-disc ml-5 space-y-1">
+              <li>Free Wi‑Fi and Air Conditioning</li>
+              <li>Breakfast included and Room Service</li>
+              <li>Smart TV and Complimentary Toiletries</li>
+              <li>On‑site Parking and 24x7 Reception</li>
+              <li>Early check‑in on request (subject to availability)</li>
+            </ul>
+            <div className="mt-3 text-xs text-gray-600">
+              Capacity: Max 3 guests per room. If guests exceed 3, an additional room is added automatically. Extra mattress provided where allowed.
+            </div>
           </div>
         )}
 
@@ -190,7 +200,9 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
               <button onClick={addToCart} disabled={qty <= 0} className="btn-primary">Add to Cart</button>
             </>
           ) : (
-            <button onClick={() => { if (storeId && product?.id) navigate(`/book/${storeId}/${product.id}`); onClose?.() }} className="btn-primary">Book Now</button>
+            <div className="text-sm text-gray-600">
+              Explore full details and photos on the room page.
+            </div>
           )}
         </div>
       </div>

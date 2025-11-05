@@ -67,14 +67,26 @@ const storeService = {
     const store = STORES.find(s => s.id === storeId)
     const room = store?.products?.find(p => p.id === roomId)
     const base = room?.price || 1000
-    // Simple constraints: max stay 14 nights, min 1 night, max 4 guests
+    // Simple constraints: max stay 14 nights, min 1 night
     if (nights < 1) return { available: false, reason: 'Invalid date range' }
     if (nights > 14) return { available: false, reason: 'Maximum 14 nights allowed' }
-    if (guests > 4) return { available: false, reason: 'Maximum 4 guests per room' }
+    // Hospitality-specific capacity: base capacity 2, optional extra mattress to allow up to 3
+    const roomName = String(room?.name || '').toLowerCase()
+    const extraMattressAllowed = /deluxe|suite|business|club|premier/.test(roomName) || roomName.includes('family')
+    const perRoomMax = extraMattressAllowed ? 3 : 2
+    const roomsRequired = Math.ceil(Math.max(1, guests) / perRoomMax)
+    const extraMattressCount = extraMattressAllowed ? Math.max(0, Math.min(roomsRequired, Math.ceil(Math.max(0, guests - roomsRequired * 2)))) : 0
+    // Reject if any single room would exceed 3 guests
+    if (guests > 0 && Math.ceil(guests / roomsRequired) > 3) {
+      return { available: false, reason: 'Not more than 3 guests allowed per room' }
+    }
     // Weekend surcharge mock
     const isWeekend = [0, 6].includes(start.getDay()) || [0, 6].includes(end.getDay())
     const surcharge = isWeekend ? 0.1 : 0
-    const subtotal = base * nights * (1 + surcharge)
+    const mattressFeePerNight = extraMattressAllowed ? Math.round(300) : 0
+    const baseRoomsSubtotal = base * roomsRequired * nights * (1 + surcharge)
+    const mattressSubtotal = extraMattressCount * mattressFeePerNight * nights
+    const subtotal = baseRoomsSubtotal + mattressSubtotal
     const taxes = subtotal * 0.1
     const fees = subtotal * 0.05
     const total = Math.round(subtotal + taxes + fees)
@@ -83,6 +95,11 @@ const storeService = {
       nights,
       base,
       surchargeRate: surcharge,
+      rooms: roomsRequired,
+      perRoomMax,
+      extraMattressAllowed,
+      extraMattressCount,
+      mattressFeePerNight,
       subtotal: Math.round(subtotal),
       taxes: Math.round(taxes),
       fees: Math.round(fees),

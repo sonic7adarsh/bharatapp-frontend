@@ -90,7 +90,17 @@ export default function RoomBooking() {
         type: 'room_booking',
         store: { id: storeId, name: store.name },
         room: { id: room.id, name: room.name, price: Number(room.price) || 0 },
-        booking: { checkIn, checkOut, guests, nights },
+        booking: {
+          checkIn,
+          checkOut,
+          guests,
+          nights,
+          rooms: availability?.rooms || 1,
+          perRoomMax: availability?.perRoomMax || 3,
+          extraMattressAllowed: !!availability?.extraMattressAllowed,
+          extraMattressCount: availability?.extraMattressCount || 0,
+          mattressFeePerNight: availability?.mattressFeePerNight || 0
+        },
         guest: { name, phone },
         notes,
         totals
@@ -218,6 +228,7 @@ export default function RoomBooking() {
               <div>
                 <label className="block text-sm font-medium mb-1">Guests</label>
                 <input type="number" min="1" value={guests} onChange={e => setGuests(Math.max(1, Number(e.target.value) || 1))} className="border rounded px-3 py-2 w-full" disabled={loading} />
+                <p className="mt-1 text-xs text-gray-600">Max 3 guests per room. If more than 3 guests, additional room will be added automatically. Extra mattress provided when allowed.</p>
               </div>
               <PressScale className="inline-block">
                 <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability}>
@@ -255,6 +266,11 @@ export default function RoomBooking() {
                 <div className="mb-2 bg-green-50 text-green-700 border border-green-200 rounded px-3 py-2">
                   Room available for your dates.
                 </div>
+                <div className="flex justify-between"><span>Rooms required</span><span className="font-semibold">{availability.rooms}</span></div>
+                <div className="flex justify-between"><span>Max guests per room</span><span className="font-semibold">{availability.perRoomMax}</span></div>
+                {availability.extraMattressAllowed && (
+                  <div className="flex justify-between"><span>Extra mattress (count)</span><span className="font-semibold">{availability.extraMattressCount} × ₹{availability.mattressFeePerNight}/night</span></div>
+                )}
                 <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">₹{availability.base}</span></div>
                 <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{availability.nights}</span></div>
                 <div className="flex justify-between"><span>Subtotal</span><span className="font-semibold">₹{availability.subtotal}</span></div>
