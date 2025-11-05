@@ -60,8 +60,13 @@ export default function Checkout() {
   // Detect if the cart contains pharmacy items requiring prescription
   useEffect(() => {
     try {
-      setRequiresPrescription(localStorage.getItem('cart_requires_prescription') === 'true')
-    } catch {}
+      const hasPharmacy = Array.isArray(items) && items.some(i => i.requiresPrescription)
+      const flag = localStorage.getItem('cart_requires_prescription') === 'true'
+      setRequiresPrescription(Boolean(hasPharmacy || flag))
+    } catch {
+      const hasPharmacy = Array.isArray(items) && items.some(i => i.requiresPrescription)
+      setRequiresPrescription(Boolean(hasPharmacy))
+    }
   }, [items])
 
   const onPrescriptionFiles = (e) => {

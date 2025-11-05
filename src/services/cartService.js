@@ -21,8 +21,10 @@ const cartService = {
         const idx = cart.findIndex(c => c.id === item.id)
         if (idx >= 0) {
           cart[idx].quantity = (cart[idx].quantity || 1) + (item.quantity || 1)
+          // Preserve pharmacy flag if provided
+          if (item.requiresPrescription) cart[idx].requiresPrescription = true
         } else {
-          cart.push({ id: item.id, name: item.name, price: item.price, quantity: item.quantity || 1 })
+          cart.push({ id: item.id, name: item.name, price: item.price, quantity: item.quantity || 1, requiresPrescription: !!item.requiresPrescription })
         }
         localStorage.setItem('cart', JSON.stringify(cart))
         return cart

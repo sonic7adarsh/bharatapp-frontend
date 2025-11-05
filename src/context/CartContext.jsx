@@ -16,6 +16,9 @@ export function CartProvider({ children }) {
   useEffect(() => {
     try {
       localStorage.setItem('cart', JSON.stringify(items))
+      const requires = Array.isArray(items) && items.some(i => i.requiresPrescription)
+      if (requires) localStorage.setItem('cart_requires_prescription', 'true')
+      else localStorage.removeItem('cart_requires_prescription')
     } catch (e) {
       // ignore storage errors
     }
@@ -49,10 +52,10 @@ export function CartProvider({ children }) {
       if (existing) {
         return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + qty } : i)
       }
-      return [...prev, { id: product.id, name: product.name, price: product.price || 0, quantity: qty }]
+      return [...prev, { id: product.id, name: product.name, price: product.price || 0, quantity: qty, requiresPrescription: !!product.requiresPrescription }]
     })
     try {
-      await cartService.addToCart({ id: product.id, name: product.name, price: product.price || 0, quantity: qty })
+      await cartService.addToCart({ id: product.id, name: product.name, price: product.price || 0, quantity: qty, requiresPrescription: !!product.requiresPrescription })
     } catch (e) {
       // ignore backend errors for add
     }

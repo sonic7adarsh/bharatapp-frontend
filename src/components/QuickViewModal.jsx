@@ -84,10 +84,8 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
     if (addonKeys.size > 0) suffixParts.push(...addons.filter(a => addonKeys.has(a.key)).map(a => a.label))
     const name = suffixParts.length > 0 ? `${product.name} (${suffixParts.join(', ')})` : product.name
     let id = `${product.id}__v:${variantKey}__a:${[...addonKeys].sort().join(',')}`
-    if (isPharmacy) {
-      try { localStorage.setItem('cart_requires_prescription', 'true') } catch {}
-    }
-    addItem({ id, name, price: unitPrice }, qty)
+    // Tag pharmacy items so Checkout can require prescription only when needed
+    addItem({ id, name, price: unitPrice, requiresPrescription: isPharmacy }, qty)
     onClose?.()
   }
 
