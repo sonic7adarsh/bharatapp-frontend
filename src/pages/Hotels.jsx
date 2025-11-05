@@ -166,7 +166,7 @@ export default function Hotels() {
                       <p className="text-gray-600">{store.category || store.type}</p>
                     </div>
                     {typeof store.rating !== 'undefined' && (
-                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">⭐ {store.rating}</span>
+                      <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(store.rating).toFixed(1)}</span>
                     )}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">

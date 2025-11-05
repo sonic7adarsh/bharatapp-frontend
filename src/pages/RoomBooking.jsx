@@ -279,11 +279,7 @@ export default function RoomBooking() {
                 </div>
                 <p className="mt-2 text-xs text-gray-600">When a room has 3 guests, an extra mattress is added if allowed.</p>
               </div>
-              <PressScale className="inline-block">
-                <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability}>
-                  {checkingAvailability ? 'Checking availability...' : 'Check availability'}
-                </button>
-              </PressScale>
+              {/* Check availability button removed here; use the one in Your Stay summary */}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
