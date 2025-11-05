@@ -321,16 +321,23 @@ export default function RoomBooking() {
           )}
         </div>
         {/* Sticky Summary */}
-        <div className="bg-white rounded-lg shadow-sm p-4 md:sticky md:top-4">
+        <div className="bg-white rounded-xl shadow-md border p-4 md:sticky md:top-24">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Your Stay</h3>
+            <h3 className="font-semibold text-lg">🛎️ Your Stay</h3>
             {availability ? (
-              <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs">Available</span>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs">Available</span>
             ) : (
-              <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs">Estimate</span>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs">Estimate</span>
             )}
           </div>
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📅 {checkIn} → {checkOut}</span>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">👤 {guests} guest{guests > 1 ? 's' : ''}</span>
+            {availability?.rooms ? (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">🛏️ {availability.rooms} room{availability.rooms > 1 ? 's' : ''}</span>
+            ) : null}
+          </div>
+          <div className="mt-4 space-y-2">
             {availability ? (
               <>
                 <div className="flex justify-between"><span>Rooms required</span><span className="font-semibold">{availability.rooms}</span></div>
@@ -364,6 +371,15 @@ export default function RoomBooking() {
                 <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{nights}</span></div>
                 <div className="flex justify-between pt-2 border-t"><span>Estimated total</span><span className="text-xl font-bold text-brand-accent">₹{((Number(room.price)||0) * nights).toFixed(0)}</span></div>
               </>
+            )}
+            {step === 1 && (
+              <div className="mt-4">
+                <PressScale className="inline-block w-full">
+                  <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability}>
+                    {checkingAvailability ? 'Checking availability...' : 'Check availability'}
+                  </button>
+                </PressScale>
+              </div>
             )}
           </div>
         </div>
