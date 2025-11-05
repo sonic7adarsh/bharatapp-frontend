@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import useAuth from '../hooks/useAuth'
+import { PageFade, PressScale } from '../motion/presets'
 
 export default function Register() {
   const [userData, setUserData] = useState({
@@ -56,7 +57,7 @@ export default function Register() {
   }
 
   return (
-    <div className="max-w-md mx-auto my-12 px-4">
+    <PageFade className="max-w-md mx-auto my-12 px-4">
       {/* Global ToastContainer is rendered in main.jsx */}
       <h1 className="text-2xl font-bold text-center mb-6">Create an Account</h1>
       <div className="bg-white p-6 rounded-lg shadow-md">
@@ -68,7 +69,7 @@ export default function Register() {
               id="name"
               value={userData.name}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-accent"
               placeholder="Enter your full name"
               required
             />
@@ -98,18 +99,20 @@ export default function Register() {
               minLength={6}
             />
           </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full ${isLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white py-2 px-4 rounded-md transition duration-200 flex justify-center items-center`}
-          >
-            {isLoading ? 'Registering...' : 'Register'}
-          </button>
+          <PressScale className="block">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full btn-primary ${isLoading ? 'disabled:opacity-60' : ''}`}
+            >
+              {isLoading ? 'Registering...' : 'Register'}
+            </button>
+          </PressScale>
         </form>
         <p className="mt-4 text-center text-gray-600">
-          Already have an account? <Link to="/login" className="text-indigo-600 hover:underline">Login</Link>
+          Already have an account? <Link to="/login" className="link-brand">Login</Link>
         </p>
       </div>
-    </div>
+    </PageFade>
   )
 }

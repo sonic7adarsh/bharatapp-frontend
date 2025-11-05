@@ -1,6 +1,7 @@
 import React from 'react'
 import useCart from '../context/CartContext'
 import { Link } from 'react-router-dom'
+import { PageFade, PressScale } from '../motion/presets'
 
 export default function Cart() {
   const { items, updateItemQuantity, removeItem, clearCart, totalPrice } = useCart()
@@ -19,7 +20,7 @@ export default function Cart() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-6">
+    <PageFade className="max-w-3xl mx-auto px-4 py-6">
       <h2 className="text-2xl font-bold">Your Cart</h2>
       {items.length === 0 ? (
         <div className="mt-4 bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded-md">
@@ -58,17 +59,19 @@ export default function Cart() {
             </div>
           ))}
 
-          <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-md p-4">
+          <div className="flex items-center justify-between bg-brand-muted border border-orange-100 rounded-md p-4">
             <div className="font-semibold">Total</div>
             <div className="text-xl font-bold">₹{totalPrice.toFixed(2)}</div>
           </div>
 
           <div className="flex items-center justify-between">
             <button onClick={clearCart} className="text-gray-600 hover:text-gray-800">Clear Cart</button>
-            <Link to="/checkout/options" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Checkout</Link>
+            <PressScale className="inline-block">
+              <Link to="/checkout/options" className="btn-primary">Checkout</Link>
+            </PressScale>
           </div>
         </div>
       )}
-    </main>
+    </PageFade>
   )
 }

@@ -7,6 +7,10 @@ import { AuthProvider } from './context/AuthContext'
 import { CartProvider } from './context/CartContext'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import { seedSampleOrdersIfEmpty } from './lib/bootstrap'
+
+// Seed deterministic sample orders for local development
+seedSampleOrdersIfEmpty()
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

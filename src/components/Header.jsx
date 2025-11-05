@@ -43,28 +43,28 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo - responsive sizing */}
-          <Link to="/" className="font-bold text-lg sm:text-xl text-indigo-600 flex-shrink-0">
+          <Link to="/" className="font-bold text-lg sm:text-xl text-brand-accent flex-shrink-0">
             <span className="hidden sm:inline">Bharat · Local</span>
             <span className="sm:hidden">BL</span>
           </Link>
           
           {/* Mobile: Cart + Menu */}
           <div className="flex items-center space-x-2 md:hidden">
-            <Link to="/cart" className="relative p-2 text-gray-600 hover:text-indigo-600 touch-manipulation">
+            <Link to="/cart" className="relative p-2 text-gray-700 hover:text-brand-accent touch-manipulation">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="9" cy="21" r="1" />
                 <circle cx="20" cy="21" r="1" />
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
               </svg>
               {itemsCount > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center text-xs font-bold bg-red-500 text-white rounded-full h-5 min-w-[20px] px-1">
+                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center text-xs font-bold bg-brand-primary text-white rounded-full h-5 min-w-[20px] px-1">
                   {itemsCount > 99 ? '99+' : itemsCount}
                 </span>
               )}
             </Link>
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 text-gray-500 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-md touch-manipulation"
+              className="p-2 text-gray-600 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 rounded-md touch-manipulation"
               aria-label="Toggle menu"
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -79,8 +79,9 @@ export default function Header() {
           
           {/* Desktop navigation */}
           <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
-            <Link to="/" className="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Home</Link>
-            <Link to="/stores" className="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Stores</Link>
+            <Link to="/" className="text-gray-700 hover:text-brand-accent font-medium transition-colors">Home</Link>
+            <Link to="/stores" className="text-gray-700 hover:text-brand-accent font-medium transition-colors">Stores</Link>
+            <Link to="/hotels" className="text-gray-700 hover:text-brand-accent font-medium transition-colors">Hotels</Link>
             {/* Location indicator */}
             <div className="relative">
               <button
@@ -90,7 +91,7 @@ export default function Header() {
                 aria-haspopup="true"
                 aria-expanded={isLocMenuOpen}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4 text-indigo-600" aria-hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4 text-brand-accent" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 21c-3.3-4.9-6-9-6-12a6 6 0 1112 0c0 3-2.7 7.1-6 12z" />
                   <circle cx="12" cy="9" r="2.3" />
                 </svg>
@@ -130,7 +131,7 @@ export default function Header() {
                 </div>
               )}
             </div>
-            <Link to="/cart" className="relative inline-flex items-center text-gray-600 hover:text-indigo-600 font-medium transition-colors">
+            <Link to="/cart" className="relative inline-flex items-center text-gray-700 hover:text-brand-accent font-medium transition-colors">
               <svg className="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="9" cy="21" r="1" />
                 <circle cx="20" cy="21" r="1" />
@@ -148,9 +149,9 @@ export default function Header() {
             <div className="flex items-center space-x-2 lg:space-x-3">
               {isAuthenticated ? (
                 <div className="flex items-center space-x-2 lg:space-x-3">
-                  <Link to="/orders" className="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Orders</Link>
+                  <Link to="/orders" className="text-gray-700 hover:text-brand-accent font-medium transition-colors">Orders</Link>
                   <div className="relative group">
-                    <button className="flex items-center space-x-1 text-gray-600 hover:text-indigo-600 font-medium transition-colors">
+                    <button className="flex items-center space-x-1 text-gray-700 hover:text-brand-accent font-medium transition-colors">
                       <span className="hidden lg:inline">{user?.name || user?.phone || 'Account'}</span>
                       <span className="lg:hidden">👤</span>
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -166,8 +167,8 @@ export default function Header() {
                 </div>
               ) : (
                 <>
-                  <Link to="/login" className="px-3 lg:px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors">Login</Link>
-                  <Link to="/register" className="px-3 lg:px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors">Register</Link>
+                  <Link to="/login" className="px-3 lg:px-4 py-2 text-sm font-medium link-brand">Login</Link>
+                  <Link to="/register" className="px-3 lg:px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primaryDark transition-colors">Register</Link>
                 </>
               )}
             </div>
@@ -178,19 +179,22 @@ export default function Header() {
         {isMenuOpen && (
           <div className="md:hidden">
             <nav className="px-2 pt-2 pb-3 space-y-1 bg-white border-t border-gray-200">
-              <Link to="/" className="block px-3 py-3 text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
+              <Link to="/" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
                 🏠 Home
               </Link>
-              <Link to="/stores" className="block px-3 py-3 text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
+              <Link to="/stores" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
                 🏪 Stores
+              </Link>
+              <Link to="/hotels" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
+                🏨 Hotels
               </Link>
               
               {isAuthenticated ? (
                 <>
-                  <Link to="/orders" className="block px-3 py-3 text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
+                  <Link to="/orders" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
                     📦 My Orders
                   </Link>
-                  <Link to="/dashboard" className="block px-3 py-3 text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
+                  <Link to="/dashboard" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
                     📊 Dashboard
                   </Link>
                   <div className="border-t border-gray-200 pt-2 mt-2">
@@ -207,10 +211,10 @@ export default function Header() {
                 </>
               ) : (
                 <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
-                  <Link to="/login" className="block px-3 py-3 text-base font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-md transition-colors touch-manipulation">
+                  <Link to="/login" className="block px-3 py-3 text-base font-medium link-brand hover:bg-brand-muted rounded-md transition-colors touch-manipulation">
                     🔑 Login
                   </Link>
-                  <Link to="/register" className="block px-3 py-3 text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors touch-manipulation">
+                  <Link to="/register" className="block px-3 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primaryDark rounded-md transition-colors touch-manipulation">
                     ✨ Register
                   </Link>
                 </div>

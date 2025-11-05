@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import storeService from '../services/storeService'
 import { STORES } from '../data/stores'
 import useCart from '../context/CartContext'
+import QuickViewModal from '../components/QuickViewModal'
 import { SkeletonStoreHeader, SkeletonProductCard } from '../components/Skeletons'
+import { PageFade, PressScale } from '../motion/presets'
 
 export default function StoreDetail() {
   const { id } = useParams()
@@ -14,6 +16,14 @@ export default function StoreDetail() {
   const [productsError, setProductsError] = useState(null)
   const { addItem, updateItemQuantity, removeItem, items, itemsCount, totalPrice } = useCart()
   const [addingId, setAddingId] = useState(null)
+  const [quickProduct, setQuickProduct] = useState(null)
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
+  const filteredProducts = useMemo(() => {
+    const q = (productSearch || '').toLowerCase()
+    if (!q) return products
+    return products.filter(p => (p.name || '').toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q))
+  }, [products, productSearch])
 
   useEffect(() => {
     const fetchStoreDetails = async () => {
@@ -84,7 +94,7 @@ export default function StoreDetail() {
           <p className="font-medium">Error</p>
           <p>{storeError}</p>
         </div>
-        <Link to="/stores" className="text-indigo-600 hover:text-indigo-800 font-medium">
+        <Link to="/stores" className="link-brand font-medium">
           &larr; Back to Stores
         </Link>
       </main>
@@ -92,7 +102,7 @@ export default function StoreDetail() {
   }
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
+    <PageFade className="max-w-5xl mx-auto px-4 py-8">
       {/* Store Header */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <div className="flex flex-col md:flex-row md:justify-between md:items-start">
@@ -106,10 +116,11 @@ export default function StoreDetail() {
             <p className="mt-3 text-gray-700">
               {store.address || store.area || 'Location information not available'}
             </p>
+            <StoreOpenBadge hours={store.hours} />
           </div>
           
           <div className="mt-4 md:mt-0">
-            <div className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-md">
+            <div className="inline-block px-4 py-2 bg-brand-primary text-white rounded-md">
               Contact Store
             </div>
           </div>
@@ -118,8 +129,17 @@ export default function StoreDetail() {
 
       {/* Products Section */}
       <section>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
           <h2 className="text-2xl font-bold">Products</h2>
+          <div className="flex-1 md:max-w-sm">
+            <input
+              type="text"
+              value={productSearch}
+              onChange={e => setProductSearch(e.target.value)}
+              placeholder="Search products..."
+              className="border rounded px-3 py-2 w-full"
+            />
+          </div>
           {productsError && (
             <p className="text-red-600 text-sm">{productsError}</p>
           )}
@@ -131,80 +151,159 @@ export default function StoreDetail() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map(product => {
-              const cartItem = items.find(i => i.id === product.id)
-              const qty = cartItem?.quantity || 0
-              return (
-              <div key={product.id} className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
-                {product.image && (
-                  <img 
-                    src={product.image} 
-                    alt={product.name} 
-                    className="w-full h-40 md:h-48 object-cover rounded-md mb-3"
-                  />
-                )}
-                <h3 className="font-semibold text-lg">{product.name}</h3>
-                <p className="text-gray-600 text-sm mt-1">{product.description || 'No description available'}</p>
-                <div className="mt-auto pt-3 flex justify-between items-center">
-                  <span className="font-bold text-lg">₹{product.price}</span>
-                  {qty > 0 ? (
-                    <div className="inline-flex items-center bg-indigo-50 text-indigo-700 rounded-md">
-                      <button
-                        onClick={() => qty <= 1 ? removeItem(product.id) : updateItemQuantity(product.id, qty - 1)}
-                        className="px-3 py-1 hover:bg-indigo-100 rounded-l-md"
-                        aria-label="Decrease quantity"
-                      >
-                        −
-                      </button>
-                      <span className="px-3 py-1 font-semibold">{qty}</span>
-                      <button
-                        onClick={() => updateItemQuantity(product.id, qty + 1)}
-                        className="px-3 py-1 hover:bg-indigo-100 rounded-r-md"
-                        aria-label="Increase quantity"
-                      >
-                        +
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        addItem(product, 1)
-                        setAddingId(product.id)
-                        setTimeout(() => setAddingId(null), 700)
-                      }}
-                      disabled={addingId === product.id}
-                      className={`px-3 py-1 rounded-md text-sm transition transform active:scale-95 ${addingId === product.id ? 'bg-green-100 text-green-700 ring-2 ring-green-300' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}
-                    >
-                      {addingId === product.id ? 'Added!' : 'Add to Cart'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )})}
+            {filteredProducts.map(product => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onQuick={() => { setQuickProduct(product); setQuickOpen(true) }}
+                storeId={id}
+                storeCategory={store?.category}
+              />
+            ))}
           </div>
         )}
       </section>
 
-      {/* Sticky Cart Bar */}
-      {itemsCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30">
-          <div className="mx-auto max-w-5xl px-4 pb-4">
-            <div className="bg-white shadow-lg rounded-lg p-3 flex items-center justify-between border">
-              <div className="flex items-center space-x-3">
-                <span className="inline-flex items-center justify-center bg-indigo-600 text-white font-semibold rounded-full h-7 min-w-[28px] px-2 text-sm">
-                  {itemsCount}
-                </span>
-                <span className="font-semibold">Cart Subtotal</span>
-                <span className="text-gray-700">₹{totalPrice.toFixed(0)}</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Link to="/cart" className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50">View Cart</Link>
-                <Link to="/checkout/options" className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Checkout</Link>
-              </div>
-            </div>
-          </div>
+      {/* Sticky Cart Bar removed: Floating cart button already provides summary */}
+
+      {/* Quick View Modal */}
+      <QuickViewModal isOpen={quickOpen} onClose={() => setQuickOpen(false)} product={quickProduct} storeOpen={(() => {
+        const h = store?.hours
+        if (!h) return true
+        const days = ['sun','mon','tue','wed','thu','fri','sat']
+        const now = new Date()
+        const key = days[now.getDay()]
+        const t = h[key]
+        if (!t?.open || !t?.close) return true
+        const [oh, om] = String(t.open).split(':').map(Number)
+        const [ch, cm] = String(t.close).split(':').map(Number)
+        const start = new Date(now); start.setHours(oh, om, 0, 0)
+        const end = new Date(now); end.setHours(ch, cm, 0, 0)
+        return now >= start && now <= end
+      })()} storeCategory={store?.category} storeId={id} />
+    </PageFade>
+  )
+}
+
+function ProductCard({ product, onQuick, storeId, storeCategory }) {
+  const [avail, setAvail] = useState({ status: 'unknown', reason: '' })
+  const isHospitality = () => {
+    const c = String(storeCategory || '').toLowerCase()
+    return c.includes('hotel') || c.includes('hospitality') || c.includes('residency')
+  }
+  const prefetchBooking = () => { import('../pages/RoomBooking') }
+  const checkQuickAvailability = async () => {
+    if (!isHospitality() || avail.status !== 'unknown') return
+    setAvail({ status: 'checking', reason: '' })
+    try {
+      const today = new Date().toISOString().slice(0,10)
+      const tmr = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10) })()
+      const res = await storeService.checkRoomAvailability({
+        storeId,
+        roomId: product.id,
+        checkIn: today,
+        checkOut: tmr,
+        guests: 2
+      })
+      if (res?.available) setAvail({ status: 'available', reason: '' })
+      else setAvail({ status: 'unavailable', reason: res?.reason || '' })
+    } catch (e) {
+      setAvail({ status: 'unknown', reason: '' })
+    }
+  }
+  return (
+    <div className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col h-full" onMouseEnter={checkQuickAvailability}>
+      {product.image && (
+        <img
+          src={product.image}
+          alt={product.name}
+          loading="lazy"
+          decoding="async"
+          width="640"
+          height="360"
+          fetchpriority="low"
+          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+          className="w-full h-40 md:h-48 object-cover rounded-md mb-3 cursor-pointer"
+          onClick={onQuick}
+        />
+      )}
+      <h3 className="font-semibold text-lg cursor-pointer" onClick={onQuick}>{product.name}</h3>
+      {/* Minimal card: show a single-line description only */}
+      {product.description ? (
+        <p className="text-gray-600 text-sm mt-1 truncate">{product.description}</p>
+      ) : null}
+      {isHospitality() && (
+        <div className="mt-2 text-xs">
+          {avail.status === 'available' && (
+            <span className="px-2 py-0.5 rounded bg-green-100 text-green-700">Likely available today</span>
+          )}
+          {avail.status === 'unavailable' && (
+            <span className="px-2 py-0.5 rounded bg-red-100 text-red-700">Not available today</span>
+          )}
+          {avail.status === 'checking' && (
+            <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">Checking availability…</span>
+          )}
         </div>
       )}
-    </main>
+
+      <div className="mt-auto pt-3 flex justify-between items-center">
+        <span className="font-bold text-lg">₹{Number(product?.price || 0).toFixed(0)}</span>
+        <PressScale className="inline-block">
+          <button
+            onClick={onQuick}
+            className="ml-2 px-3 py-1 rounded-md text-sm bg-brand-muted text-brand-accent hover:bg-orange-100"
+          >
+            Quick View
+          </button>
+        </PressScale>
+        {isHospitality() && (
+          <PressScale className="inline-block">
+            <Link
+              to={`/book/${storeId}/${product.id}`}
+              onMouseEnter={prefetchBooking}
+              className="ml-2 px-3 py-1 rounded-md text-sm bg-brand-primary text-white hover:bg-brand-primaryDark"
+            >
+              Book Room
+            </Link>
+          </PressScale>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StoreOpenBadge({ hours }) {
+  const isOpenNow = (hours) => {
+    if (!hours || typeof hours !== 'object') return true
+    const days = ['sun','mon','tue','wed','thu','fri','sat']
+    const now = new Date()
+    const key = days[now.getDay()]
+    const today = hours[key]
+    if (!today?.open || !today?.close) return true
+    const [oh, om] = today.open.split(':').map(Number)
+    const [ch, cm] = today.close.split(':').map(Number)
+    const start = new Date(now); start.setHours(oh, om, 0, 0)
+    const end = new Date(now); end.setHours(ch, cm, 0, 0)
+    return now >= start && now <= end
+  }
+  const todayHoursLabel = (hours) => {
+    if (!hours) return ''
+    const days = ['sun','mon','tue','wed','thu','fri','sat']
+    const now = new Date()
+    const key = days[now.getDay()]
+    const t = hours[key]
+    if (!t?.open || !t?.close) return ''
+    return `${t.open}–${t.close}`
+  }
+  const open = isOpenNow(hours)
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${open ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
+        {open ? 'Open now' : 'Closed'}
+      </span>
+      {todayHoursLabel(hours) && (
+        <span className="text-xs text-gray-600">Today: {todayHoursLabel(hours)}</span>
+      )}
+    </div>
   )
 }

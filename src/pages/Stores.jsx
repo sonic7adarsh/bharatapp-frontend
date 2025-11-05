@@ -4,6 +4,7 @@ import { STORES } from '../data/stores'
 import { SkeletonStoreCard } from '../components/Skeletons'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
+import { PageFade, HoverLiftCard, PressScale } from '../motion/presets'
 
 export default function Stores() {
   const [stores, setStores] = useState([])
@@ -11,6 +12,7 @@ export default function Stores() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
+  const [minRating, setMinRating] = useState(0)
   const [city, setCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
   const [sortBy, setSortBy] = useState('')
@@ -100,7 +102,7 @@ export default function Stores() {
 
   // derive sorted view
   const sortedStores = useMemo(() => {
-    const list = [...stores]
+    const list = [...stores].filter(s => !minRating || Number(s.rating || 0) >= Number(minRating))
     if (sortBy === 'rating') {
       return list.sort((a, b) => (b.rating || 0) - (a.rating || 0))
     }
@@ -108,10 +110,40 @@ export default function Stores() {
       return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     }
     return list
-  }, [stores, sortBy])
+  }, [stores, sortBy, minRating])
+
+  const isHospitalityCat = (c = '') => {
+    const x = String(c).toLowerCase()
+    return x.includes('hotel') || x.includes('hospitality') || x.includes('hospital')
+  }
+  const shopsStores = useMemo(() => sortedStores.filter(s => !isHospitalityCat(s.category || s.type)), [sortedStores])
+
+  const isOpenNow = (hours) => {
+    if (!hours || typeof hours !== 'object') return true
+    const days = ['sun','mon','tue','wed','thu','fri','sat']
+    const now = new Date()
+    const key = days[now.getDay()]
+    const today = hours[key]
+    if (!today?.open || !today?.close) return true
+    const [oh, om] = today.open.split(':').map(Number)
+    const [ch, cm] = today.close.split(':').map(Number)
+    const start = new Date(now); start.setHours(oh, om, 0, 0)
+    const end = new Date(now); end.setHours(ch, cm, 0, 0)
+    return now >= start && now <= end
+  }
+
+  const todayHoursLabel = (hours) => {
+    if (!hours) return ''
+    const days = ['sun','mon','tue','wed','thu','fri','sat']
+    const now = new Date()
+    const key = days[now.getDay()]
+    const t = hours[key]
+    if (!t?.open || !t?.close) return ''
+    return `${t.open}–${t.close}`
+  }
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4">
+    <PageFade className="max-w-5xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-4">Explore Local Stores</h1>
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -140,14 +172,41 @@ export default function Stores() {
             <option value="rating">Top Rated</option>
             <option value="name">Name A–Z</option>
           </select>
-          <Link
-            to="/onboard"
-            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-          >
-            Onboard Your Store
-          </Link>
+          <PressScale className="inline-block">
+            <Link
+              to="/onboard"
+              className="btn-primary"
+            >
+              Onboard Your Store
+            </Link>
+          </PressScale>
+        </div>
+        {/* Rating filters */}
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
+          {[0, 4.0, 4.5, 4.8].map(r => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setMinRating(r)}
+              className={`px-3 py-1 rounded-full text-sm border ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+            >
+              {r === 0 ? 'All ratings' : `${r}+`}
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Coupon applied hint */}
+      {(() => {
+        let p = ''
+        try { p = localStorage.getItem('promo') || '' } catch {}
+        if (!p) return null
+        return (
+          <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+            Coupon applied: <span className="font-semibold">{p.toUpperCase()}</span>
+          </div>
+        )
+      })()}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -163,9 +222,9 @@ export default function Stores() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedStores.map(store => (
+          {shopsStores.map(store => (
             <Link to={`/store/${store.id}`} key={store.id} className="block">
-              <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+              <HoverLiftCard className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-elev-2 transition-shadow duration-300">
                 {store.image && (
                   <img src={store.image} alt={store.name} className="w-full h-48 object-cover" />
                 )}
@@ -176,12 +235,20 @@ export default function Stores() {
                     <p className="text-yellow-600 text-sm mt-1">⭐ {store.rating}</p>
                   )}
                   <p className="text-gray-500 text-sm mt-1">{store.location || store.area}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${isOpenNow(store.hours) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
+                      {isOpenNow(store.hours) ? 'Open now' : 'Closed'}
+                    </span>
+                    {todayHoursLabel(store.hours) && (
+                      <span className="text-xs text-gray-600">Today: {todayHoursLabel(store.hours)}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </HoverLiftCard>
             </Link>
           ))}
         </div>
       )}
-    </div>
+    </PageFade>
   )
 }

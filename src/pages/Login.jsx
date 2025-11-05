@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import useAuth from '../hooks/useAuth'
+import { PageFade, PressScale } from '../motion/presets'
 
 export default function Login() {
   const [credentials, setCredentials] = useState({
@@ -50,7 +51,7 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto my-12 px-4">
+    <PageFade className="max-w-md mx-auto my-12 px-4">
       {/* Global ToastContainer is rendered in main.jsx */}
       <h1 className="text-2xl font-bold text-center mb-6">Login to Your Account</h1>
       <div className="bg-white p-6 rounded-lg shadow-md">
@@ -79,13 +80,15 @@ export default function Login() {
               required
             />
           </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full ${isLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white py-2 px-4 rounded-md transition duration-200 flex justify-center items-center`}
-          >
-            {isLoading ? 'Logging in...' : 'Login'}
-          </button>
+          <PressScale className="block">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full btn-primary ${isLoading ? 'disabled:opacity-60' : ''}`}
+            >
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
+          </PressScale>
         </form>
         <div className="mt-6 space-y-3">
           <div className="relative">
@@ -99,7 +102,7 @@ export default function Login() {
           
           <Link
             to="/mobile-login"
-            className="w-full flex justify-center items-center py-2 px-4 border border-indigo-600 rounded-md text-indigo-600 hover:bg-indigo-50 transition duration-200"
+            className="w-full flex justify-center items-center py-2 px-4 btn-outline"
           >
             <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -109,9 +112,9 @@ export default function Login() {
         </div>
         
         <p className="mt-4 text-center text-gray-600">
-          Don't have an account? <Link to="/register" className="text-indigo-600 hover:underline">Register</Link>
+          Don't have an account? <Link to="/register" className="link-brand">Register</Link>
         </p>
       </div>
-    </div>
+    </PageFade>
   )
 }

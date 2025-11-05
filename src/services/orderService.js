@@ -17,6 +17,13 @@ const orderService = {
         createdAt: new Date().toISOString(),
         items: (payload?.items || []).map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
         paymentMethod: payload?.paymentMethod || 'cod',
+        // Preserve booking-specific metadata for hospitality
+        type: payload?.type || 'order',
+        booking: payload?.booking,
+        guest: payload?.guest,
+        room: payload?.room,
+        store: payload?.store,
+        notes: payload?.notes,
       }
       try {
         const saved = localStorage.getItem('orders')

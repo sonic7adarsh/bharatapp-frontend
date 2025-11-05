@@ -28,11 +28,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false
         },
-        '/orders': {
-          target: apiBase,
-          changeOrigin: true,
-          secure: false
-        },
         '/auth': {
           target: apiBase,
           changeOrigin: true,

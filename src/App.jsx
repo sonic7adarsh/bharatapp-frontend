@@ -16,6 +16,10 @@ const Checkout = lazy(() => import('./pages/Checkout'))
 const CheckoutOptions = lazy(() => import('./pages/CheckoutOptions'))
 const MyOrders = lazy(() => import('./pages/MyOrders'))
 const AddProductPublic = lazy(() => import('./pages/AddProductPublic'))
+const OrderDetail = lazy(() => import('./pages/OrderDetail'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const RoomBooking = lazy(() => import('./pages/RoomBooking'))
+const Hotels = lazy(() => import('./pages/Hotels'))
 
 export default function App() {
   return (
@@ -24,6 +28,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/stores" element={<Stores />} />
+          <Route path="/hotels" element={<Hotels />} />
           <Route path="/onboard" element={<StoreOnboard />} />
           <Route path="/store/:id" element={<StoreDetail />} />
           <Route path="/login" element={<Login />} />
@@ -32,14 +37,17 @@ export default function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout/options" element={<CheckoutOptions />} />
           <Route path="/checkout" element={<Checkout />} />
-          <Route path="/orders" element={
-            <ProtectedRoute>
-              <MyOrders />
-            </ProtectedRoute>
-          } />
+          <Route path="/orders" element={<MyOrders />} />
+          <Route path="/orders/:orderId" element={<OrderDetail />} />
+          <Route path="/book/:storeId/:roomId" element={<RoomBooking />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <StoreDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminDashboard />
             </ProtectedRoute>
           } />
           <Route path="/products/add" element={

@@ -51,6 +51,44 @@ const storeService = {
     }
     return generateProducts(6)
   },
+  async checkRoomAvailability({ storeId, roomId, checkIn, checkOut, guests = 1 }) {
+    // Try backend if available
+    try {
+      const res = await api.get('/api/availability', {
+        params: { storeId, roomId, checkIn, checkOut, guests }
+      })
+      if (res?.data) return res.data
+    } catch {}
+    // Local mock: compute nights and apply simple rules
+    const start = new Date(checkIn)
+    const end = new Date(checkOut)
+    const oneDay = 24 * 60 * 60 * 1000
+    const nights = Math.max(0, Math.round((end - start) / oneDay))
+    const store = STORES.find(s => s.id === storeId)
+    const room = store?.products?.find(p => p.id === roomId)
+    const base = room?.price || 1000
+    // Simple constraints: max stay 14 nights, min 1 night, max 4 guests
+    if (nights < 1) return { available: false, reason: 'Invalid date range' }
+    if (nights > 14) return { available: false, reason: 'Maximum 14 nights allowed' }
+    if (guests > 4) return { available: false, reason: 'Maximum 4 guests per room' }
+    // Weekend surcharge mock
+    const isWeekend = [0, 6].includes(start.getDay()) || [0, 6].includes(end.getDay())
+    const surcharge = isWeekend ? 0.1 : 0
+    const subtotal = base * nights * (1 + surcharge)
+    const taxes = subtotal * 0.1
+    const fees = subtotal * 0.05
+    const total = Math.round(subtotal + taxes + fees)
+    return {
+      available: true,
+      nights,
+      base,
+      surchargeRate: surcharge,
+      subtotal: Math.round(subtotal),
+      taxes: Math.round(taxes),
+      fees: Math.round(fees),
+      total
+    }
+  },
   async createStore(payload) {
     try {
       const res = await api.post('/api/stores', payload, { showSuccessToast: true, successMessage: 'Store onboarding request sent.' })
