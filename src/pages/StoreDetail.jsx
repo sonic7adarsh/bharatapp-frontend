@@ -103,12 +103,29 @@ export default function StoreDetail() {
 
   return (
     <PageFade className="max-w-5xl mx-auto px-4 py-8">
+      {/* Breadcrumb */}
+      <div className="mb-4">
+        <Link to="/stores" className="text-sm link-brand" aria-label="Back to Stores">
+          &larr; Back to Stores
+        </Link>
+      </div>
       {/* Store Header */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <div className="flex flex-col md:flex-row md:justify-between md:items-start">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{store.name}</h1>
-            <p className="text-gray-600 mt-1">{store.category}</p>
+            <div className="mt-2 flex items-center gap-2">
+              {store.category && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-medium">
+                  {store.category}
+                </span>
+              )}
+              {(store.area || store.city) && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
+                  {store.area || store.city}
+                </span>
+              )}
+            </div>
             <div className="mt-2">
               <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store.rating !== 'undefined' ? store.rating : 4.5).toFixed(1)}</span>
             </div>
@@ -117,11 +134,11 @@ export default function StoreDetail() {
             </p>
             <StoreOpenBadge hours={store.hours} />
           </div>
-          
+
           <div className="mt-4 md:mt-0">
-            <div className="inline-block px-4 py-2 bg-brand-primary text-white rounded-md">
+            <button type="button" className="inline-flex items-center px-4 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors" aria-label="Contact Store">
               Contact Store
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -131,11 +148,13 @@ export default function StoreDetail() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
           <h2 className="text-2xl font-bold">Products</h2>
           <div className="flex-1 md:max-w-sm">
+            <label htmlFor="product-search" className="sr-only">Search products</label>
             <input
+              id="product-search"
               type="text"
               value={productSearch}
               onChange={e => setProductSearch(e.target.value)}
-              placeholder="Search products..."
+              placeholder="Search products by name or description"
               className="border rounded px-3 py-2 w-full"
             />
           </div>
@@ -146,7 +165,11 @@ export default function StoreDetail() {
 
         {products.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
-            <p>No products available for this store.</p>
+            <p className="font-medium">No products available for this store.</p>
+            <p className="mt-1 text-sm">Please check back later or explore other stores.</p>
+            <div className="mt-3">
+              <Link to="/stores" className="link-brand font-medium">Browse Stores</Link>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
