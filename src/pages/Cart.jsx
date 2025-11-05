@@ -31,10 +31,18 @@ export default function Cart() {
     <PageFade className="max-w-5xl mx-auto px-4 py-6">
       <h2 className="text-2xl font-bold">Your Cart</h2>
       {items.length === 0 ? (
-        <div className="mt-4 bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded-md">
-          <p>Your cart is empty.</p>
-          <div className="mt-3">
-            <Link to="/stores" className="link-brand">Browse Stores</Link>
+        <div className="mt-4 bg-gray-50 border border-gray-200 text-gray-700 px-6 py-5 rounded-lg">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-700">🛒</span>
+            <div>
+              <p className="font-medium">Your cart is empty</p>
+              <p className="text-sm text-gray-600">Discover local stores and add items to continue.</p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <PressScale className="inline-block">
+              <Link to="/stores" className="btn-primary">Browse Stores</Link>
+            </PressScale>
           </div>
         </div>
       ) : (
@@ -44,7 +52,12 @@ export default function Cart() {
             {items.map(item => (
               <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
                 <div>
-                  <div className="font-semibold">{item.name}</div>
+                  <div className="font-semibold flex items-center gap-2">
+                    <span>{item.name}</span>
+                    {item.requiresPrescription && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">Pharmacy</span>
+                    )}
+                  </div>
                   <div className="text-sm text-gray-600">₹{Number(item.price).toFixed(0)} each</div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -56,7 +69,7 @@ export default function Cart() {
                     >
                       −
                     </button>
-                    <div className="px-4 py-1 min-w-[2.5rem] text-center font-medium">
+                    <div className="px-4 py-1 min-w-[2.5rem] text-center font-medium" aria-live="polite">
                       {item.quantity}
                     </div>
                     <button
@@ -67,7 +80,7 @@ export default function Cart() {
                       +
                     </button>
                   </div>
-                  <button onClick={() => removeItem(item.id)} className="text-red-600 hover:text-red-700">Remove</button>
+                  <button onClick={() => removeItem(item.id)} className="px-3 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">Remove</button>
                 </div>
               </div>
             ))}
