@@ -46,7 +46,7 @@ export default function MyOrders() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">My Orders</h2>
         <PressScale className="inline-block">
-          <Link to="/stores" className="text-indigo-600 hover:text-indigo-800">Browse Stores</Link>
+          <Link to="/stores" className="inline-flex items-center px-3 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50">Browse Stores</Link>
         </PressScale>
       </div>
 
@@ -58,7 +58,11 @@ export default function MyOrders() {
 
       {orders.length === 0 ? (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
-          <p>No orders found.</p>
+          <p className="font-medium">No orders yet.</p>
+          <p className="text-sm mt-1">Discover nearby stores and place your first order.</p>
+          <div className="mt-3">
+            <Link to="/stores" className="link-brand font-medium">Browse Stores</Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -100,8 +104,8 @@ export default function MyOrders() {
                       )}
                     </div>
                   </div>
-                  <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium min-w-[90px] ${isDelivered ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {order.status || 'Pending'}
+                  <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-medium min-w-[96px] ${isDelivered ? 'bg-green-100 text-green-700' : status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {String(order.status || 'pending').toUpperCase()}
                   </span>
                 </div>
                 {/* Tracking timeline */}
@@ -124,7 +128,7 @@ export default function MyOrders() {
                 </div>
                 {/* ETA and actions */}
                 <div className="mt-4 flex items-center justify-between">
-                  <div className={`text-sm ${isDelivered ? 'text-green-700' : 'text-gray-700'}`}>{isDelivered ? 'Delivered' : `ETA ~${etaRange}`}</div>
+                  <div className={`text-sm ${isDelivered ? 'text-green-700' : status === 'cancelled' ? 'text-red-700' : 'text-gray-700'}`}>{isDelivered ? 'Delivered' : status === 'cancelled' ? 'Cancelled' : `ETA ~${etaRange}`}</div>
                   <div className="flex items-center gap-2">
                     <PressScale className="inline-block">
                       <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50">View details</Link>
