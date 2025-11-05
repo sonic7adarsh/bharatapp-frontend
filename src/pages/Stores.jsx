@@ -146,36 +146,60 @@ export default function Stores() {
     <PageFade className="max-w-5xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-4">Explore Local Stores</h1>
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by store name..."
-            className="border rounded px-3 py-2 w-full"
-          />
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value === 'All' ? '' : e.target.value)}
-            className="border rounded px-3 py-2 w-full text-sm"
-          >
-            {categories.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="border rounded px-3 py-2 w-full text-sm"
-          >
-            <option value="">Sort</option>
-            <option value="rating">Top Rated</option>
-            <option value="name">Name A–Z</option>
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div>
+            <label htmlFor="stores-search" className="sr-only">Search stores</label>
+            <input
+              id="stores-search"
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by store name"
+              className="border rounded px-3 py-2 w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="stores-category" className="sr-only">Category</label>
+            <select
+              id="stores-category"
+              value={category}
+              onChange={e => setCategory(e.target.value === 'All' ? '' : e.target.value)}
+              className="border rounded px-3 py-2 w-full text-sm"
+            >
+              {categories.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="stores-city" className="sr-only">City</label>
+            <input
+              id="stores-city"
+              type="text"
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder={detectingCity && !city ? 'Detecting city…' : 'City (optional)'}
+              className="border rounded px-3 py-2 w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="stores-sort" className="sr-only">Sort by</label>
+            <select
+              id="stores-sort"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="border rounded px-3 py-2 w-full text-sm"
+            >
+              <option value="">Sort</option>
+              <option value="rating">Top Rated</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </div>
           <PressScale className="inline-block">
             <Link
               to="/onboard"
-              className="btn-primary"
+              aria-label="Onboard your store"
+              className="inline-flex items-center justify-center px-3 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm"
             >
               Onboard Your Store
             </Link>
@@ -188,7 +212,8 @@ export default function Stores() {
               key={r}
               type="button"
               onClick={() => setMinRating(r)}
-              className={`px-3 py-1 rounded-full text-sm border ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              aria-pressed={Number(minRating) === r}
+              className={`px-3 py-1 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-brand-primary ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
             >
               {r === 0 ? 'All ratings' : `${r}+`}
             </button>
@@ -250,7 +275,9 @@ export default function Stores() {
                   <div className="mt-2 h-px bg-gray-100" />
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-sm text-gray-600">Explore products and offers</span>
-                    <span className="inline-flex items-center text-brand-accent text-sm">View Store →</span>
+                    <PressScale className="inline-block">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-md border border-brand-primary text-brand-primary text-sm hover:bg-orange-50">View Store</span>
+                    </PressScale>
                   </div>
                 </div>
               </HoverLiftCard>
