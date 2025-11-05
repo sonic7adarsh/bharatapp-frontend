@@ -74,21 +74,23 @@ export default function Home() {
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight">
-            Discover local stores
-            <span className="block text-orange-200 font-semibold">Shop nearby. Support community.</span>
+            Discover trusted local stores
+            <span className="block text-orange-200 font-semibold">Shop nearby. Support your community.</span>
           </h1>
           <p className="text-base sm:text-lg md:text-xl mb-8 md:mb-10 max-w-3xl mx-auto leading-relaxed text-pink-100">
-            BharatApp connects you with trusted neighborhood shops and services. Explore curated stores by city, category, and ratings.
+            BharatApp connects you to neighborhood shops and services. Explore stores by city, category, and rating.
           </p>
 
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-8 md:mb-10">
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-0">
+              <label htmlFor="home-search" className="sr-only">Search stores, products, services</label>
               <input
+                id="home-search"
                 type="text"
                 placeholder="Search stores, products, services..."
                 aria-label="Search"
-                className="flex-grow px-4 py-3 sm:py-4 rounded-lg sm:rounded-l-lg sm:rounded-r-none text-gray-900 focus:outline-none focus:ring-2 focus:ring-white/60 text-base sm:text-lg"
+                className="flex-grow px-4 py-3 sm:py-4 rounded-lg sm:rounded-l-lg sm:rounded-r-none text-gray-900 focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-0 text-base sm:text-lg"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -147,7 +149,12 @@ export default function Home() {
             {[
               'Groceries', 'Pharmacy', 'Electronics', 'Fashion', 'Home & Kitchen', 'Services'
             ].map(cat => (
-              <div key={cat} className="text-center border rounded-lg px-3 py-3 hover:bg-gray-50 cursor-pointer">
+              <div
+                key={cat}
+                tabIndex={0}
+                aria-label={`Browse ${cat}`}
+                className="text-center border rounded-lg px-3 py-3 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
+              >
                 <span className="text-sm font-medium text-gray-700">{cat}</span>
               </div>
             ))}
@@ -157,12 +164,13 @@ export default function Home() {
 
       {/* Featured Stores Section */}
       <section className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-2">
           <h2 className="text-2xl font-bold">Featured Local Stores</h2>
            <Link to="/stores" className="link-brand font-medium">
              View All →
            </Link>
          </div>
+         <p className="text-gray-600 mb-8">Handpicked shops in your city.</p>
 
         {loading ? (
           <div className="flex justify-center py-12">
