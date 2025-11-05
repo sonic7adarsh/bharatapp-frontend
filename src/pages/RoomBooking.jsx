@@ -65,30 +65,17 @@ export default function RoomBooking() {
     setGuests(total)
   }, [roomsGuests])
 
-  const incTotal = () => {
-    setRoomsGuests(prev => {
-      const next = [...prev]
-      const i = next.length - 1
-      if (next[i] < 3) next[i] += 1
-      else next.push(1)
-      return next
-    })
-  }
-
-  const decTotal = () => {
-    setRoomsGuests(prev => {
-      const next = [...prev]
-      const i = next.length - 1
-      if (next[i] > 1) next[i] -= 1
-      else if (next.length > 1) next.pop()
-      return next.length === 0 ? [1] : next
-    })
-  }
+  // Remove global +/−; rely on per-room controls only
 
   const incRoom = (idx) => {
     setRoomsGuests(prev => {
       const next = [...prev]
-      if (next[idx] < 3) next[idx] += 1
+      if (next[idx] < 3) {
+        next[idx] += 1
+      } else if (idx === next.length - 1) {
+        // If last room is full, clicking + adds a new room
+        next.push(1)
+      }
       return next
     })
   }
@@ -270,30 +257,23 @@ export default function RoomBooking() {
                 <label className="block text-sm font-medium mb-1">Check-out</label>
                 <input type="date" value={checkOut} min={minCheckOut} onChange={e => setCheckOut(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
               </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Guests</label>
-            <div className="flex items-center justify-between">
-              <div className="inline-flex items-center rounded-md bg-brand-muted text-brand-accent px-2 py-1">
-                <button type="button" onClick={decTotal} className="px-3 py-1 text-lg font-bold hover:bg-orange-100 rounded-l-md" disabled={loading}>-</button>
-                <span className="px-3 text-sm">{guests} guest{guests > 1 ? 's' : ''}</span>
-                <button type="button" onClick={incTotal} className="px-3 py-1 text-lg font-bold hover:bg-orange-100 rounded-r-md" disabled={loading}>+</button>
-              </div>
-              <span className="text-xs text-gray-600">Max 3 guests per room</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {roomsGuests.map((g, idx) => (
-                <div key={idx} className="flex items-center justify-between border rounded-md px-3 py-2">
-                  <span className="text-sm font-medium">Room {idx + 1}</span>
-                  <div className="inline-flex items-center rounded-md bg-gray-50 border">
-                    <button type="button" onClick={() => decRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading}>-</button>
-                    <span className="px-3 text-sm">{g} guest{g > 1 ? 's' : ''}</span>
-                    <button type="button" onClick={() => incRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading || g >= 3}>+</button>
-                  </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Guests</label>
+                <div className="mt-1 text-xs text-gray-600">Max 3 guests per room. Use +/− per room; adding beyond 3 creates a new room.</div>
+                <div className="mt-3 space-y-2">
+                  {roomsGuests.map((g, idx) => (
+                    <div key={idx} className="flex items-center justify-between border rounded-md px-3 py-2">
+                      <span className="text-sm font-medium">Room {idx + 1}</span>
+                      <div className="inline-flex items-center rounded-md bg-gray-50 border">
+                        <button type="button" onClick={() => decRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading}>-</button>
+                        <span className="px-3 text-sm">{g} guest{g > 1 ? 's' : ''}</span>
+                        <button type="button" onClick={() => incRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading}>+</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-gray-600">When a room has 3 guests, an extra mattress is added if allowed. Adding beyond 3 creates a new room row automatically.</p>
-          </div>
+                <p className="mt-2 text-xs text-gray-600">When a room has 3 guests, an extra mattress is added if allowed.</p>
+              </div>
               <PressScale className="inline-block">
                 <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability}>
                   {checkingAvailability ? 'Checking availability...' : 'Check availability'}

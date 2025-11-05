@@ -8,6 +8,7 @@ import { PageFade, PressScale } from '../motion/presets'
 
 export default function Home() {
   const [stores, setStores] = useState(STORES)
+  const [nonHospStores, setNonHospStores] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [detectedCity, setDetectedCity] = useState('')
@@ -21,6 +22,16 @@ export default function Home() {
       if (res?.length) setStores(res)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  // Exclude hospitality from Home featured list
+  useEffect(() => {
+    const isHospitalityCat = (c = '') => {
+      const x = String(c).toLowerCase()
+      return x.includes('hotel') || x.includes('hospitality') || x.includes('hospital')
+    }
+    const filtered = (Array.isArray(stores) ? stores : []).filter(s => !isHospitalityCat(s.category || s.type))
+    setNonHospStores(filtered)
+  }, [stores])
 
   // Detect city but do NOT auto-redirect; show CTA instead
   useEffect(() => {
@@ -159,7 +170,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {stores.slice(0, 6).map(s => (
+            {nonHospStores.slice(0, 6).map(s => (
               <StoreCard key={s.id} store={s} />
             ))}
           </div>
