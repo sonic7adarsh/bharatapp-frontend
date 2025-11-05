@@ -246,8 +246,9 @@ export default function RoomBooking() {
           </div>
         </div>
         
-        {/* Booking Form */}
-        <div className="bg-white rounded-lg shadow-sm p-4" aria-busy={loading || isPending}>
+        {/* Right Column: Booking Form + Summary */}
+        <div className="md:col-span-1 flex flex-col gap-4">
+          <div className="bg-white rounded-lg shadow-sm p-4" aria-busy={loading || isPending}>
           {error && (
             <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded">{error}</div>
           )}
@@ -309,19 +310,19 @@ export default function RoomBooking() {
             </div>
           )}
           {/* summary moved to separate sticky card */}
-          {step === 1 && (
-            <div className="mt-3 text-center">
-              <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
-            </div>
-          )}
-          {step === 2 && (
-            <div className="mt-3 text-center">
-              <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
-            </div>
-          )}
-        </div>
-        {/* Sticky Summary */}
-        <div className="bg-white rounded-xl shadow-md border p-4 md:sticky md:top-24">
+            {step === 1 && (
+              <div className="mt-3 text-center">
+                <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
+              </div>
+            )}
+            {step === 2 && (
+              <div className="mt-3 text-center">
+                <Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link>
+              </div>
+            )}
+          </div>
+          {/* Sticky Summary */}
+          <div className="bg-white rounded-xl shadow-md border p-4 md:sticky md:top-24">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-lg">🛎️ Your Stay</h3>
             {availability ? (
@@ -381,6 +382,7 @@ export default function RoomBooking() {
                 </PressScale>
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>

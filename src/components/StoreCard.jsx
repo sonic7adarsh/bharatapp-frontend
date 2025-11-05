@@ -24,7 +24,7 @@ export default function StoreCard({ store }) {
             <h3 className="font-semibold text-lg truncate">{store.name}</h3>
             <p className="text-sm text-gray-600 truncate">{store.category || store.type || 'General'}</p>
           </div>
-          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">⭐ {ratingValue}</span>
+          <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(ratingValue).toFixed(1)}</span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs min-h-[28px]">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {locationLabel}</span>

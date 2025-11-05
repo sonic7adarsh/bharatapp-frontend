@@ -234,7 +234,7 @@ export default function Stores() {
                       <h2 className="text-xl font-semibold truncate">{store.name}</h2>
                       <p className="text-gray-600 truncate">{store.category || store.type || 'General'}</p>
                     </div>
-                    <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">⭐ {typeof store.rating !== 'undefined' ? store.rating : 4.5}</span>
+                    <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store.rating !== 'undefined' ? store.rating : 4.5).toFixed(1)}</span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs min-h-[28px]">
                     <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.location || store.area || 'Nearby'}</span>
