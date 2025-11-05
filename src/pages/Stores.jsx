@@ -229,19 +229,32 @@ export default function Stores() {
                   <img src={store.image} alt={store.name} className="w-full h-48 object-cover" />
                 )}
                 <div className="p-4">
-                  <h2 className="text-xl font-semibold">{store.name}</h2>
-                  <p className="text-gray-600">{store.category || store.type}</p>
-                  {typeof store.rating !== 'undefined' && (
-                    <p className="text-yellow-600 text-sm mt-1">⭐ {store.rating}</p>
-                  )}
-                  <p className="text-gray-500 text-sm mt-1">{store.location || store.area}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${isOpenNow(store.hours) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold">{store.name}</h2>
+                      <p className="text-gray-600">{store.category || store.type}</p>
+                    </div>
+                    {typeof store.rating !== 'undefined' && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">⭐ {store.rating}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    {(store.location || store.area) && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.location || store.area}</span>
+                    )}
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${isOpenNow(store.hours) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
                       {isOpenNow(store.hours) ? 'Open now' : 'Closed'}
                     </span>
                     {todayHoursLabel(store.hours) && (
                       <span className="text-xs text-gray-600">Today: {todayHoursLabel(store.hours)}</span>
                     )}
+                  </div>
+                </div>
+                <div className="px-4 pb-4">
+                  <div className="mt-2 h-px bg-gray-100" />
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Explore products and offers</span>
+                    <span className="inline-flex items-center text-brand-accent text-sm">View Store →</span>
                   </div>
                 </div>
               </HoverLiftCard>
