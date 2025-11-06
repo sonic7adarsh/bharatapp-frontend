@@ -5,7 +5,8 @@ import { toast } from 'react-toastify'
 const baseURL = import.meta.env?.DEV ? '' : API_BASE
 const instance = axios.create({
   baseURL,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 10000
 })
 
 // attach token if present
@@ -27,6 +28,7 @@ instance.interceptors.response.use(
     const successMessage = response?.config?.successMessage
     if (showSuccess && method && method !== 'GET') {
       toast.success(successMessage || 'Action completed successfully')
+      try { window.__announce?.(successMessage || 'Action completed successfully', 'polite') } catch {}
     }
     return response
   },
@@ -36,9 +38,16 @@ instance.interceptors.response.use(
     const showError = error?.config?.showErrorToast === true
     const message = error?.response?.data?.message || error?.message || 'Something went wrong. Please try again.'
 
+    // Auto-logout on unauthorized to prevent zombie sessions
+    if (status === 401) {
+      try { window.__announce?.('Session expired. Please login again.', 'assertive') } catch {}
+      try { window.__logout?.() } catch {}
+    }
+
     // Suppress noisy popups on 5xx or GET calls; only toast when explicitly requested
     if (showError && method !== 'GET' && (typeof status === 'number' ? status < 500 : true)) {
       toast.error(message)
+      try { window.__announce?.(message, 'assertive') } catch {}
     } else {
       // Log quietly to console to aid debugging without disrupting UX
       console.warn('[API]', method, error?.config?.url, status || '', message)

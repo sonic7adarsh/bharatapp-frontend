@@ -6,11 +6,14 @@ import paymentService from '../services/paymentService'
 import { toast } from 'react-toastify'
 import { PageFade, PressScale } from '../motion/presets'
 import { FREE_DELIVERY_THRESHOLD, DELIVERY_FEE_DEFAULT, SERVICEABLE_PINCODES } from '../lib/config'
+import { isNavKey, nextIndexForKey } from '../lib/keyboard'
+import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart()
   const location = useLocation()
   const navigate = useNavigate()
+  const { announce } = useAnnouncer()
   const [method, setMethod] = useState('cod')
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -36,23 +39,48 @@ export default function Checkout() {
   const [requiresPrescription, setRequiresPrescription] = useState(false)
   const [prescriptions, setPrescriptions] = useState([])
   const deliveryFee = Number(totalPrice) >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE_DEFAULT
-  const [taxRate, setTaxRate] = useState(0.05) // GST default 5%
+  const [taxRate, setTaxRate] = useState(0) // Prices are inclusive of taxes
+  const [showSavedSelector, setShowSavedSelector] = useState(false)
   const taxAmount = useMemo(() => {
     const base = Math.max(Number(totalPrice) - Number(discount || 0) + Number(deliveryFee || 0), 0)
     return Math.round(base * taxRate)
   }, [totalPrice, discount, deliveryFee, taxRate])
 
+  // Announce changes to key selections
+  useEffect(() => {
+    if (!deliverySlot) return
+    const labels = { morning: 'Morning 8–11 AM', afternoon: 'Afternoon 12–3 PM', evening: 'Evening 5–8 PM' }
+    const label = labels[deliverySlot] || deliverySlot
+    announce(`Preferred delivery slot: ${label}.`, 'polite')
+  }, [deliverySlot])
+
+  useEffect(() => {
+    if (Number(tip) >= 0) {
+      announce(Number(tip) === 0 ? 'Tip set to: No tip.' : `Tip set to: ₹${Number(tip)}.`, 'polite')
+    }
+  }, [tip])
+
+  useEffect(() => {
+    announce(`GST rate set to ${Math.round(taxRate * 100)}%.`, 'polite')
+  }, [taxRate])
+
   // Allow switching payment method inline for better UX
   const setPaymentMethod = (m) => {
     const normalized = m === 'online' ? 'online' : 'cod'
     setMethod(normalized)
+    announce(normalized === 'cod' ? 'Payment method: Cash on Delivery selected.' : 'Payment method: Online payment selected.', 'polite')
     try { localStorage.setItem('checkout_method', normalized) } catch {}
     const params = new URLSearchParams(location.search)
     params.set('method', normalized)
     navigate({ pathname: '/checkout', search: params.toString() }, { replace: true })
   }
 
-  const [addressMode, setAddressMode] = useState('saved') // 'saved' | 'new'
+  const [addressMode, setAddressMode] = useState('saved') // modal-based add
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false)
+  const [addressModalTab, setAddressModalTab] = useState('saved') // 'saved' | 'edit'
+  const [modalSelectedIndex, setModalSelectedIndex] = useState('')
+  const [editingIndex, setEditingIndex] = useState(null)
+  const [newAddress, setNewAddress] = useState({ name: '', phone: '', line1: '', line2: '', city: '', pincode: '' })
   useEffect(() => {
     try {
       const raw = localStorage.getItem('saved_addresses')
@@ -62,12 +90,60 @@ export default function Checkout() {
         setSelectedSavedIndex('0')
         setAddress(arr[0])
         setAddressMode('saved')
+        setShowSavedSelector(true)
       } else {
         setSelectedSavedIndex('')
         setAddressMode('new')
+        setShowSavedSelector(false)
       }
     } catch {}
   }, [])
+
+  useEffect(() => {
+    announce('Using saved address mode.', 'polite')
+  }, [])
+
+  const openAddressModal = () => {
+    // Open unified selector modal; default to saved list if available
+    const hasSaved = savedAddresses.length > 0
+    setAddressModalTab(hasSaved ? 'saved' : 'edit')
+    setModalSelectedIndex(hasSaved ? (selectedSavedIndex || '0') : '')
+    setEditingIndex(null)
+    setNewAddress({ name: '', phone: '', line1: '', line2: '', city: '', pincode: '' })
+    setIsAddressModalOpen(true)
+    announce('Select Address dialog opened.', 'polite')
+  }
+
+  const closeAddressModal = () => {
+    setIsAddressModalOpen(false)
+    announce('Address dialog closed.', 'polite')
+  }
+
+  const saveNewAddress = () => {
+    const entry = { ...newAddress }
+    if (!entry.name || !isValidPhone(entry.phone) || !entry.line1 || !entry.city || !isValidPincode(entry.pincode)) {
+      setError('Fill valid name, phone, address, city, and 6-digit pincode to save.')
+      return
+    }
+    try {
+      let next = [...savedAddresses]
+      if (Number.isFinite(editingIndex)) {
+        next[editingIndex] = entry
+        toast.success('Address updated')
+        setSelectedSavedIndex(String(editingIndex))
+      } else {
+        next = [...next, entry]
+        toast.success('Address saved')
+        setSelectedSavedIndex(String(next.length - 1))
+      }
+      setSavedAddresses(next)
+      localStorage.setItem('saved_addresses', JSON.stringify(next))
+      setAddress(entry)
+      setAddressMode('saved')
+      setAddressModalTab('saved')
+      setEditingIndex(null)
+    } catch {}
+  }
 
   // Detect if the cart contains pharmacy items requiring prescription
   useEffect(() => {
@@ -163,7 +239,16 @@ export default function Checkout() {
     const idx = Number(idxStr)
     if (!Number.isFinite(idx)) return
     const entry = savedAddresses[idx]
-    if (entry) setAddress(entry)
+    if (entry) {
+      setAddress(entry)
+      announce(`Selected saved address: ${entry.line1 || ''}, ${entry.city || ''}.`, 'polite')
+    }
+  }
+
+  const applySelectedAddressFromModal = () => {
+    if (modalSelectedIndex === '') return
+    selectSavedAddress(modalSelectedIndex)
+    closeAddressModal()
   }
 
   const deleteSavedAddress = () => {
@@ -184,19 +269,35 @@ export default function Checkout() {
     toast.info('Saved address removed')
   }
 
+  const deleteSavedAddressAt = (idx) => {
+    if (!Number.isFinite(idx)) return
+    const next = savedAddresses.filter((_, i) => i !== idx)
+    setSavedAddresses(next)
+    try { localStorage.setItem('saved_addresses', JSON.stringify(next)) } catch {}
+    const newSel = next.length > 0 ? '0' : ''
+    setSelectedSavedIndex(newSel)
+    if (newSel !== '') setAddress(next[0]); else setAddress({ name: '', phone: '', line1: '', line2: '', city: '', pincode: '' })
+    setAddressMode(next.length > 0 ? 'saved' : 'new')
+    setModalSelectedIndex(newSel)
+    toast.info('Saved address removed')
+  }
+
   const applyPromo = () => {
     const code = promo.trim().toUpperCase()
     if (!code) return
     if (code === 'WELCOME50') {
       setDiscount(50)
       setError('')
+      announce('Coupon applied: WELCOME50. ₹50 discount added.', 'polite')
     } else if (code === 'SAVE10') {
       const d = Math.min(Math.round(totalPrice * 0.1), 100)
       setDiscount(d)
       setError('')
+      announce(`Coupon applied: SAVE10. ${d === 0 ? 'No discount' : `₹${d} discount added`}.`, 'polite')
     } else {
       setDiscount(0)
       setError('Invalid promo code')
+      announce('Invalid promo code.', 'assertive')
     }
   }
 
@@ -207,6 +308,7 @@ export default function Checkout() {
     try { localStorage.removeItem('promo') } catch {}
     const params = new URLSearchParams(location.search)
     params.delete('promo'); params.delete('coupon')
+    announce('Coupon removed.', 'polite')
     const qs = params.toString()
     navigate({ pathname: '/checkout', search: qs }, { replace: true })
   }
@@ -283,6 +385,7 @@ export default function Checkout() {
 
       if (!ok || !key || !order?.id) {
         toast.info('Proceeding with mock payment (no gateway configured)')
+        const txid = 'PAY-' + Date.now()
         const payload = {
           items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
           totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
@@ -292,7 +395,7 @@ export default function Checkout() {
           deliveryInstructions,
           prescriptions: prescriptions.map(f => ({ name: f.name, size: f.size, type: f.type })),
           paymentMethod: 'online',
-          paymentInfo: { gateway: 'mock', status: 'success', reference: 'PAY-' + Date.now() }
+          paymentInfo: { gateway: 'mock', status: 'success', transactionId: txid, reference: txid }
         }
         const data = await orderService.checkout(payload)
         setOrderInfo(data || { reference: 'ORDER-' + Date.now() })
@@ -336,6 +439,8 @@ export default function Checkout() {
                 gateway: 'razorpay',
                 orderId: order.id,
                 paymentId: response.razorpay_payment_id,
+                transactionId: response.razorpay_payment_id,
+                status: 'success',
               }
             }
             const data = await orderService.checkout(payload)
@@ -382,24 +487,22 @@ export default function Checkout() {
   }
 
   return (
-    <PageFade className="max-w-3xl mx-auto px-4 py-6">
-      <h2 className="text-2xl font-bold">Checkout</h2>
-      {/* Status summary for a professional feel */}
-      {items.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${isAddressValid() ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {isAddressValid() ? 'Address ✔' : 'Address incomplete'}
-          </span>
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${deliverySlot ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-            {deliverySlot ? 'Slot selected' : 'Select delivery slot'}
-          </span>
-          {requiresPrescription && (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${prescriptions.length > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {prescriptions.length > 0 ? 'Prescription attached' : 'Prescription required'}
-            </span>
-          )}
-        </div>
-      )}
+    <PageFade className="max-w-3xl mx-auto px-4 py-6" aria-busy={loading} aria-labelledby="checkout-title">
+      <h2 id="checkout-title" className="text-2xl font-bold">Checkout</h2>
+      <a href="#order-summary-title" className="sr-only focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-brand-accent rounded px-2 py-1">Skip to order summary</a>
+      {/* Step progress announcements for screen readers */}
+      <div id="checkout-progress" className="sr-only" role="status" aria-live="polite">
+        {isAddressValid() ? 'Address complete.' : 'Address incomplete.'}
+        {' '}
+        {deliverySlot ? (
+          deliverySlot === 'morning' ? 'Delivery slot selected: Morning 8–11 AM.' :
+          deliverySlot === 'afternoon' ? 'Delivery slot selected: Afternoon 12–3 PM.' :
+          deliverySlot === 'evening' ? 'Delivery slot selected: Evening 5–8 PM.' :
+          'Delivery slot selected.'
+        ) : 'Delivery slot not selected.'}
+        {' '}
+        {requiresPrescription ? (prescriptions.length > 0 ? 'Prescription attached.' : 'Prescription required.') : ''}
+      </div>
       {items.length === 0 ? (
         <div className="mt-4 bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
           <p>Your cart is empty.</p>
@@ -408,74 +511,30 @@ export default function Checkout() {
           </div>
         </div>
       ) : (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,480px)] gap-4">
+          <div className="space-y-4">
           {/* Address */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-4 border-b font-semibold">Delivery Address</div>
+            <div className="p-4 border-b font-semibold flex items-center justify-between">
+              <span>Delivery Address</span>
+              <button type="button" onClick={openAddressModal} className="btn-outline text-xs sm:text-sm px-2 py-1">Select address</button>
+            </div>
             <div className="p-4 space-y-3">
-              {/* Mode toggle: Use saved vs Add new */}
-              <div className="inline-flex items-center rounded-full border px-2 py-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => savedAddresses.length > 0 && setAddressMode('saved')}
-                  className={`px-2 py-0.5 rounded ${addressMode === 'saved' && savedAddresses.length > 0 ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'} ${savedAddresses.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >Use saved</button>
-                <button
-                  type="button"
-                  onClick={() => setAddressMode('new')}
-                  className={`ml-1 px-2 py-0.5 rounded ${addressMode === 'new' ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'}`}
-                >Add new</button>
-              </div>
-
-              {/* Saved address selector */}
-              {addressMode === 'saved' && savedAddresses.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={selectedSavedIndex}
-                      onChange={e => selectSavedAddress(e.target.value)}
-                      className="border rounded px-3 py-2 flex-1 text-sm"
-                    >
-                      <option value="">Select saved address</option>
-                      {savedAddresses.map((a, idx) => (
-                        <option key={idx} value={String(idx)}>{a.name} — {a.line1}, {a.city} {a.pincode}</option>
-                      ))}
-                    </select>
-                    <button type="button" onClick={deleteSavedAddress} disabled={selectedSavedIndex === ''} className="px-3 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200">Delete</button>
-                  </div>
-                  {selectedSavedIndex !== '' && (
-                    <div className="text-sm text-gray-700 bg-gray-50 rounded px-3 py-2">
-                      <div className="font-medium">{address.name}</div>
-                      <div>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</div>
-                      <div>{address.city} — {address.pincode}</div>
-                      <div>📞 {address.phone}</div>
-                    </div>
-                  )}
-                </>
+              {/* Selected address preview */}
+              {address?.name && address?.line1 && address?.city && address?.pincode ? (
+                <div className="text-sm text-gray-700 bg-gray-50 rounded px-3 py-2 break-words">
+                  <div className="font-medium">{address.name}</div>
+                  <div>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</div>
+                  <div>{address.city} — {address.pincode}</div>
+                  {address.phone && <div className="text-gray-600">📞 {address.phone}</div>}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No address selected</div>
               )}
 
-              {/* New address form */}
-              {addressMode === 'new' && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input value={address.name} onChange={e => setAddress(a => ({...a, name: e.target.value}))} placeholder="Full Name" className="border rounded px-3 py-2" />
-                    <input value={address.phone} onChange={e => setAddress(a => ({...a, phone: e.target.value}))} placeholder="Phone (10 digits)" className={`border rounded px-3 py-2 ${address.phone && !isValidPhone(address.phone) ? 'border-red-400' : ''}`} />
-                    <input value={address.line1} onChange={e => setAddress(a => ({...a, line1: e.target.value}))} placeholder="Address line 1" className="border rounded px-3 py-2 md:col-span-2" />
-                    <input value={address.line2} onChange={e => setAddress(a => ({...a, line2: e.target.value}))} placeholder="Address line 2 (optional)" className="border rounded px-3 py-2 md:col-span-2" />
-                    <input value={address.city} onChange={e => setAddress(a => ({...a, city: e.target.value}))} placeholder="City" className="border rounded px-3 py-2" />
-                    <input value={address.pincode} onChange={e => setAddress(a => ({...a, pincode: e.target.value}))} placeholder="Pincode (6 digits)" className={`border rounded px-3 py-2 ${address.pincode && (!isValidPincode(address.pincode) || !isServiceablePincode(address.pincode)) ? 'border-red-400' : ''}`} />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={saveCurrentAddress} className="px-3 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200">Save this address</button>
-                    {!isServiceablePincode(address.pincode) && isValidPincode(address.pincode) && (
-                      <span className="text-sm text-red-600">Looks outside our delivery zone. Try another address or pincode.</span>
-                    )}
-                    {Array.isArray(SERVICEABLE_PINCODES) && SERVICEABLE_PINCODES.length > 0 && isValidPincode(address.pincode) && isServiceablePincode(address.pincode) && (
-                      <span className="text-sm text-green-700">Serviceable area ✔</span>
-                    )}
-                  </div>
-                </>
-              )}
+              {/* Saved selector removed in favor of unified modal */}
+
+              {/* Modal for new address */}
             </div>
           </div>
 
@@ -502,7 +561,7 @@ export default function Checkout() {
           {/* Delivery Slot */}
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b font-semibold">Preferred Delivery Slot</div>
-            <div className="p-4 flex flex-wrap gap-2">
+            <div className="p-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Preferred delivery slot">
               {[
                 { key: 'morning', label: 'Morning 8–11 AM', icon: '🌅' },
                 { key: 'afternoon', label: 'Afternoon 12–3 PM', icon: '🌤️' },
@@ -514,13 +573,27 @@ export default function Checkout() {
                   onClick={() => setDeliverySlot(s.key)}
                   className={`px-3 py-2 rounded-full text-sm border flex items-center ${deliverySlot === s.key ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
                   aria-label={`Select ${s.label}`}
+                  role="radio"
+                  aria-checked={deliverySlot === s.key}
+                  id={`slot-${s.key}`}
+                  tabIndex={deliverySlot === s.key ? 0 : -1}
+                  onKeyDown={(e) => {
+                    const list = ['morning','afternoon','evening']
+                    const idx = list.indexOf(s.key)
+                    const key = e.key
+                    const targetIdx = nextIndexForKey(idx, list.length, key)
+                    if (isNavKey(key)) {
+                      setDeliverySlot(list[targetIdx])
+                      e.preventDefault()
+                    }
+                  }}
                 >
-                  <span className="mr-1" aria-hidden>{s.icon}</span>
+              <span className="mr-1" aria-hidden="true">{s.icon}</span>
                   {s.label}
                 </button>
               ))}
             </div>
-            <div className="px-4 pb-4 text-sm text-gray-600">
+            <div className="px-4 pb-4 text-sm text-gray-600" aria-live="polite">
               {deliverySlot === 'morning' && 'Estimated delivery: Today 8–11 AM'}
               {deliverySlot === 'afternoon' && 'Estimated delivery: Today 12–3 PM'}
               {deliverySlot === 'evening' && 'Estimated delivery: Today 5–8 PM'}
@@ -531,74 +604,61 @@ export default function Checkout() {
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b font-semibold">Delivery Instructions</div>
             <div className="p-4">
+              <label htmlFor="delivery-notes" className="text-sm font-medium">Add instructions for the rider</label>
               <textarea
+                id="delivery-notes"
                 value={deliveryInstructions}
                 onChange={e => setDeliveryInstructions(e.target.value)}
                 placeholder="e.g., Ring the doorbell once, leave at gate, call if needed"
-                className="border rounded px-3 py-2 w-full min-h-[80px]"
+                className="mt-1 border rounded px-3 py-2 w-full min-h-[80px]"
               />
             </div>
           </div>
 
-          {/* Tip */}
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-4 border-b font-semibold">Tip Your Delivery Partner (optional)</div>
-            <div className="p-4 flex flex-wrap gap-2 items-center">
-              {[0, 10, 20, 50].map(v => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setTip(v)}
-                  className={`px-3 py-2 rounded-full text-sm border ${Number(tip) === v ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-                >
-                  {v === 0 ? 'No Tip' : `₹${v}`}
-                </button>
-              ))}
-              <input
-                type="number"
-                min={0}
-                value={tip}
-                onChange={e => setTip(Math.max(0, Number(e.target.value || 0)))}
-                placeholder="Custom ₹"
-                className="border rounded px-3 py-2 w-28"
-              />
-            </div>
+          {/* Tip and Tax sections removed per request */}
           </div>
-
-          {/* Tax Settings */}
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-4 border-b font-semibold">Tax Settings</div>
-            <div className="p-4">
-              <div className="text-sm text-gray-600">Select GST rate</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {[0, 0.05, 0.12, 0.18].map(r => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setTaxRate(r)}
-                    className={`px-3 py-2 rounded-full text-sm border ${taxRate === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-                    aria-label={`Set GST ${Math.round(r*100)}%`}
-                  >
-                    {Math.round(r * 100)}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="space-y-4">
+          <div className="bg-white rounded-lg shadow-sm" id="order-summary">
           <div className="p-4 border-b font-semibold flex items-center justify-between">
-            <span>Order Summary</span>
-            <div className="inline-flex items-center rounded-full border px-2 py-1 text-xs">
+            <span id="order-summary-title" tabIndex={-1}>Order Summary</span>
+            <div className="inline-flex items-center rounded-full border px-2 py-1 text-xs" role="radiogroup" aria-label="Payment method">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('cod')}
                 className={`px-2 py-0.5 rounded ${method === 'cod' ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                role="radio"
+                aria-checked={method === 'cod'}
+                id="pay-cod"
+                tabIndex={method === 'cod' ? 0 : -1}
+                onKeyDown={(e) => {
+                  const list = ['cod','online']
+                  const idx = 0
+                  const key = e.key
+                  const targetIdx = nextIndexForKey(idx, list.length, key)
+                  if (isNavKey(key)) {
+                    setPaymentMethod(list[targetIdx])
+                    e.preventDefault()
+                  }
+                }}
               >COD</button>
               <button
                 type="button"
                 onClick={() => setPaymentMethod('online')}
                 className={`ml-1 px-2 py-0.5 rounded ${method === 'online' ? 'bg-brand-accent text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                role="radio"
+                aria-checked={method === 'online'}
+                id="pay-online"
+                tabIndex={method === 'online' ? 0 : -1}
+                onKeyDown={(e) => {
+                  const list = ['cod','online']
+                  const idx = 1
+                  const key = e.key
+                  const targetIdx = nextIndexForKey(idx, list.length, key)
+                  if (isNavKey(key)) {
+                    setPaymentMethod(list[targetIdx])
+                    e.preventDefault()
+                  }
+                }}
               >Online</button>
             </div>
           </div>
@@ -607,21 +667,28 @@ export default function Checkout() {
                 <div className="text-sm text-gray-600">Payment Method</div>
                 <div className="font-medium" aria-label={method === 'cod' ? 'Cash on Delivery' : 'Online Payment'}>
                   {method === 'cod' ? (
-                    <span className="text-2xl" aria-hidden>💵</span>
+            <span className="text-2xl" aria-hidden="true">💵</span>
                   ) : (
-                    <span aria-hidden>
+            <span aria-hidden="true">
                       <span className="text-2xl">💳</span>
                       <span className="text-2xl ml-1">📱</span>
                     </span>
                   )}
                 </div>
               </div>
+              <div className="text-xs text-gray-600" aria-live="polite" role="status">
+                {method === 'online' ? (
+              <span><span aria-hidden="true">🔒</span> Secure online payment via encrypted gateway</span>
+                ) : (
+                  <span>Pay in cash at delivery. No online payment needed.</span>
+                )}
+              </div>
               <div className="flex justify-between items-center">
                 <div className="text-sm text-gray-600">Delivery Slot</div>
                 <div className="font-medium">
-                  {deliverySlot === 'morning' && <span aria-hidden>🌅 Morning</span>}
-                  {deliverySlot === 'afternoon' && <span aria-hidden>🌤️ Afternoon</span>}
-                  {deliverySlot === 'evening' && <span aria-hidden>🌙 Evening</span>}
+            {deliverySlot === 'morning' && <span aria-hidden="true">🌅 Morning</span>}
+            {deliverySlot === 'afternoon' && <span aria-hidden="true">🌤️ Afternoon</span>}
+            {deliverySlot === 'evening' && <span aria-hidden="true">🌙 Evening</span>}
                   {!deliverySlot && <span className="text-gray-500">Not selected</span>}
                 </div>
               </div>
@@ -635,44 +702,44 @@ export default function Checkout() {
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t space-y-2">
+            <div className="p-4 border-t space-y-2" aria-live="polite">
               <div className="flex justify-between"><span className="font-semibold">Subtotal</span><span>₹{totalPrice.toFixed(2)}</span></div>
               <div className="flex justify-between"><span>Delivery Fee {Number(totalPrice) >= FREE_DELIVERY_THRESHOLD ? '(free)' : `(free over ₹${FREE_DELIVERY_THRESHOLD})`}</span><span>₹{deliveryFee.toFixed(2)}</span></div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-700"><span>Discount</span><span>-₹{discount.toFixed(2)}</span></div>
               )}
-              <div className="flex justify-between"><span>Tax (GST {Math.round(taxRate*100)}%)</span><span>₹{taxAmount.toFixed(2)}</span></div>
+              {/* Tax line removed: prices are inclusive */}
               {Number(tip) > 0 && (
                 <div className="flex justify-between text-gray-700"><span>Tip</span><span>₹{Number(tip).toFixed(2)}</span></div>
               )}
               <div className="flex justify-between pt-2 border-t bg-brand-muted rounded px-3 py-2"><span className="font-semibold">Payable</span><span className="text-2xl font-bold text-brand-accent">₹{computePayable().toFixed(2)}</span></div>
+              <div className="text-xs text-gray-600">Rates inclusive of taxes.</div>
               {discount > 0 ? (
                 <div className="text-sm text-green-700">You saved ₹{discount.toFixed(0)} with coupon {promo?.toUpperCase()}.</div>
               ) : null}
-            </div>
-          </div>
 
-          {/* Promo code */}
-          <div className="bg-white rounded-lg shadow-sm p-4 space-y-2">
-            {promo && discount > 0 ? (
-              <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-sm">
-                <span aria-hidden>🏷️</span>
-                <span className="ml-2">Applied:</span>
-                <span className="font-semibold ml-1">{promo.toUpperCase()}</span>
-                <button type="button" onClick={removePromo} className="ml-2 px-2 py-0.5 rounded bg-green-200 hover:bg-green-300">Remove</button>
+              {/* Promo code (inline inside Order Summary for proper alignment) */}
+              {promo && discount > 0 ? (
+                <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-sm" role="status" aria-live="polite">
+                  <span aria-hidden="true">🏷️</span>
+                  <span className="ml-2">Applied:</span>
+                  <span className="font-semibold ml-1">{promo.toUpperCase()}</span>
+                  <button type="button" onClick={removePromo} className="ml-2 px-2 py-0.5 rounded bg-green-200 hover:bg-green-300">Remove</button>
+                </div>
+              ) : null}
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <label htmlFor="promo-code" className="sr-only">Promo code</label>
+                <input id="promo-code" value={promo} onChange={e => setPromo(e.target.value)} placeholder="Enter promo code" className="border rounded px-3 py-2 w-full" />
+                <button onClick={applyPromo} className="btn-primary">Apply</button>
               </div>
-            ) : null}
-            <div className="flex items-center space-x-3">
-              <input value={promo} onChange={e => setPromo(e.target.value)} placeholder="Enter promo code" className="border rounded px-3 py-2 flex-1" />
-              <button onClick={applyPromo} className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200">Apply</button>
-            </div>
-            <div className="text-sm text-gray-600">
-              Try <button type="button" className="underline" onClick={() => setPromo('WELCOME50')}>WELCOME50</button> (₹50 off) or <button type="button" className="underline" onClick={() => setPromo('SAVE10')}>SAVE10</button> (10% up to ₹100).
+              <div className="text-xs text-gray-600 mt-1">
+                Try <button type="button" className="underline" onClick={() => setPromo('WELCOME50')}>WELCOME50</button> (₹50 off) or <button type="button" className="underline" onClick={() => setPromo('SAVE10')}>SAVE10</button> (10% up to ₹100).
+              </div>
             </div>
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md" role="alert" aria-live="assertive">
               {error}
             </div>
           )}
@@ -684,6 +751,8 @@ export default function Checkout() {
                   onClick={payOnline}
                   disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
                   className="btn-primary disabled:opacity-60"
+                  aria-disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
+                  aria-label={`Pay Online, amount ₹${computePayable().toFixed(2)}`}
                 >
                   {loading ? 'Processing...' : 'Pay Online'}
                 </button>
@@ -694,11 +763,110 @@ export default function Checkout() {
                   onClick={placeOrder}
                   disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
                   className="btn-primary disabled:opacity-60"
+                  aria-disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
+                  aria-label={`Place Order, amount ₹${computePayable().toFixed(2)}`}
                 >
                   {loading ? 'Placing Order...' : 'Place Order'}
                 </button>
-              </PressScale>
+          </PressScale>
             )}
+          </div>
+        </div>
+        </div>
+      )}
+      {isAddressModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" aria-live="polite">
+          <div className="fixed inset-0 bg-black/40" onClick={closeAddressModal} aria-hidden="true"></div>
+          <div role="dialog" aria-modal="true" aria-labelledby="address-dialog-title" className="relative z-10 bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
+            <div className="p-4 border-b">
+              <div className="font-semibold" id="address-dialog-title">Select Address</div>
+            </div>
+            <div className="p-4 space-y-4">
+              {addressModalTab === 'saved' ? (
+                savedAddresses.length === 0 ? (
+                  <div className="text-sm text-gray-700">
+                    No saved addresses yet.
+                    <div className="mt-3">
+                      <button type="button" onClick={() => setAddressModalTab('edit')} className="btn-outline text-sm px-2 py-1">Add new address</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedAddresses.map((a, idx) => (
+                      <div key={idx} className="border rounded p-3 flex items-start justify-between gap-3">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input type="radio" name="addr-select" value={String(idx)} checked={modalSelectedIndex === String(idx)} onChange={e => setModalSelectedIndex(e.target.value)} className="mt-1" aria-label={`Select address ${a.name}`} />
+                          <div className="text-sm">
+                            <div className="font-medium">{a.name}</div>
+                            <div>{a.line1}{a.line2 ? `, ${a.line2}` : ''}</div>
+                            <div>{a.city} — {a.pincode}</div>
+                            <div className="text-gray-600">📞 {a.phone}</div>
+                          </div>
+                        </label>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button type="button" onClick={() => { setEditingIndex(idx); setNewAddress(a); setAddressModalTab('edit') }} className="px-2 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200">Edit</button>
+                          <button type="button" onClick={() => deleteSavedAddressAt(idx)} className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200">Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label htmlFor="new-addr-name" className="text-sm font-medium">Full Name</label>
+                      <input id="new-addr-name" value={newAddress.name} onChange={e => setNewAddress(a => ({...a, name: e.target.value}))} placeholder="e.g., Adarsh Kumar" className="border rounded px-3 py-2 w-full" />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="new-addr-phone" className="text-sm font-medium">Phone</label>
+                      <input id="new-addr-phone" value={newAddress.phone} onChange={e => setNewAddress(a => ({...a, phone: e.target.value}))} placeholder="10 digits" aria-invalid={Boolean(newAddress.phone && !isValidPhone(newAddress.phone))} aria-describedby="new-phone-help" className={`border rounded px-3 py-2 w-full ${newAddress.phone && !isValidPhone(newAddress.phone) ? 'border-red-400' : ''}`} />
+                      <span id="new-phone-help" className="sr-only">Enter a 10-digit mobile number</span>
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label htmlFor="new-addr-line1" className="text-sm font-medium">Address line 1</label>
+                      <input id="new-addr-line1" value={newAddress.line1} onChange={e => setNewAddress(a => ({...a, line1: e.target.value}))} placeholder="House/Flat, Street" className="border rounded px-3 py-2 w-full" />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label htmlFor="new-addr-line2" className="text-sm font-medium">Address line 2 (optional)</label>
+                      <input id="new-addr-line2" value={newAddress.line2} onChange={e => setNewAddress(a => ({...a, line2: e.target.value}))} placeholder="Area, Landmark" className="border rounded px-3 py-2 w-full" />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="new-addr-city" className="text-sm font-medium">City</label>
+                      <input id="new-addr-city" value={newAddress.city} onChange={e => setNewAddress(a => ({...a, city: e.target.value}))} placeholder="e.g., Bengaluru" className="border rounded px-3 py-2 w-full" />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="new-addr-pincode" className="text-sm font-medium">Pincode</label>
+                      <input id="new-addr-pincode" value={newAddress.pincode} onChange={e => setNewAddress(a => ({...a, pincode: e.target.value}))} placeholder="6 digits" aria-invalid={Boolean(newAddress.pincode && (!isValidPincode(newAddress.pincode) || !isServiceablePincode(newAddress.pincode)))} aria-describedby="new-pincode-help" className={`border rounded px-3 py-2 w-full ${newAddress.pincode && (!isValidPincode(newAddress.pincode) || !isServiceablePincode(newAddress.pincode)) ? 'border-red-400' : ''}`} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap" id="new-pincode-help" aria-live="polite">
+                    {!isServiceablePincode(newAddress.pincode) && isValidPincode(newAddress.pincode) && (
+                      <span className="text-sm text-red-600" role="status">Looks outside our delivery zone. Try another address or pincode.</span>
+                    )}
+                    {Array.isArray(SERVICEABLE_PINCODES) && SERVICEABLE_PINCODES.length > 0 && isValidPincode(newAddress.pincode) && isServiceablePincode(newAddress.pincode) && (
+                      <span className="text-sm text-green-700" role="status">Serviceable area ✔</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="p-4 border-t flex justify-between items-center gap-2">
+              {addressModalTab === 'saved' ? (
+                <>
+                  <button type="button" onClick={() => { setEditingIndex(null); setNewAddress({ name:'', phone:'', line1:'', line2:'', city:'', pincode:'' }); setAddressModalTab('edit') }} className="btn-outline text-sm">Add new address</button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={closeAddressModal} className="btn-outline text-sm">Cancel</button>
+                    <button type="button" onClick={applySelectedAddressFromModal} disabled={modalSelectedIndex === ''} className="btn-primary text-sm disabled:opacity-60">Use selected</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => { const hasSaved = savedAddresses.length > 0; hasSaved ? setAddressModalTab('saved') : closeAddressModal() }} className="btn-outline text-sm">Cancel</button>
+                  <button type="button" onClick={saveNewAddress} className="btn-primary text-sm">{Number.isFinite(editingIndex) ? 'Update Address' : 'Save Address'}</button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

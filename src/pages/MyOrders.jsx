@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { PageFade, PressScale } from '../motion/presets'
 import useCart from '../context/CartContext'
 import { useNavigate } from 'react-router-dom'
+import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function MyOrders() {
   const { user, loading: authLoading } = useAuth()
@@ -13,17 +14,24 @@ export default function MyOrders() {
   const [error, setError] = useState('')
   const { addItem, clearCart } = useCart()
   const navigate = useNavigate()
+  const { announce } = useAnnouncer()
 
   useEffect(() => {
     const fetchOrders = async () => {
       try {
         setLoading(true)
+        announce('Loading orders…', 'polite')
         const data = await orderService.getOrders()
-        setOrders(Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : [])
+        const raw = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
+        const onlyOrders = raw.filter(o => String(o?.type || 'order') !== 'room_booking')
+        setOrders(onlyOrders)
         setError('')
+        const count = onlyOrders.length
+        announce(count > 0 ? `Loaded ${count} orders.` : 'No orders yet. Browse stores to place your first order.', 'polite')
       } catch (err) {
         console.error('Failed to fetch orders:', err)
         setError(err?.response?.data?.message || 'Failed to load orders. Please try again later.')
+        announce('Failed to load orders. Please try again later.', 'assertive')
       } finally {
         setLoading(false)
       }
@@ -34,8 +42,9 @@ export default function MyOrders() {
   if (authLoading || loading) {
     return (
       <PageFade className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex justify-center items-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+        <div className="flex justify-center items-center min-h-[300px]" role="status" aria-live="polite">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600" aria-hidden="true"></div>
+          <span className="sr-only">Loading orders…</span>
         </div>
       </PageFade>
     )
@@ -44,29 +53,29 @@ export default function MyOrders() {
   return (
     <PageFade className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">My Orders</h2>
+        <h1 id="orders-heading" className="text-2xl font-bold">My Orders</h1>
         <PressScale className="inline-block">
           <Link to="/stores" className="inline-flex items-center px-3 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50">Browse Stores</Link>
         </PressScale>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4" role="alert">
           {error}
         </div>
       )}
 
       {orders.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
-          <p className="font-medium">No orders yet.</p>
+        <section className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md" aria-labelledby="empty-orders-title">
+          <p id="empty-orders-title" className="font-medium">No orders yet.</p>
           <p className="text-sm mt-1">Discover nearby stores and place your first order.</p>
           <div className="mt-3">
             <Link to="/stores" className="link-brand font-medium">Browse Stores</Link>
           </div>
-        </div>
+        </section>
       ) : (
-        <div className="space-y-4">
-          {orders.map(order => {
+        <ul role="list" aria-labelledby="orders-heading" className="space-y-4">
+          {orders.map((order, idx) => {
             const dateStr = (() => {
               const d = order.createdAt || order.orderDate || order.date
               const dt = d ? new Date(d) : null
@@ -81,6 +90,8 @@ export default function MyOrders() {
               const base = 30 + Math.max(0, 5 - Math.min(5, (order.items || []).length || 1)) * 5
               return `${base}-${base + 10}m`
             })()
+            const titleId = `order-${String(order.id || order.reference || idx)}-title`
+            const descId = `order-${String(order.id || order.reference || idx)}-desc`
             const handleReorder = () => {
               try { clearCart() } catch {}
               ;(order.items || []).forEach(it => {
@@ -89,11 +100,11 @@ export default function MyOrders() {
               navigate('/cart')
             }
             return (
-              <div key={order.id || order.reference || Math.random()} className="bg-white p-4 rounded-lg shadow-sm">
+              <li key={order.id || order.reference || Math.random()} className="bg-white p-4 rounded-lg shadow-sm" aria-labelledby={titleId} aria-describedby={descId}>
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-semibold">
-                      <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="text-indigo-600 hover:text-indigo-800">
+                      <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} id={titleId} className="text-indigo-600 hover:text-indigo-800" aria-label={`Order ${order.reference || order.id || ''} placed on ${dateStr}`}>
                         Order {order.reference || order.id || ''}
                       </Link>
                     </div>
@@ -131,17 +142,20 @@ export default function MyOrders() {
                   <div className={`text-sm ${isDelivered ? 'text-green-700' : status === 'cancelled' ? 'text-red-700' : 'text-gray-700'}`}>{isDelivered ? 'Delivered' : status === 'cancelled' ? 'Cancelled' : `ETA ~${etaRange}`}</div>
                   <div className="flex items-center gap-2">
                     <PressScale className="inline-block">
-                      <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50">View details</Link>
+                      <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50" aria-label={`View details for order ${order.reference || order.id || ''}`}>
+                        View details
+                      </Link>
                     </PressScale>
                     <PressScale className="inline-block">
-                      <button onClick={handleReorder} className="px-3 py-2 rounded-md border hover:bg-gray-50">Reorder</button>
+                      <button onClick={handleReorder} className="px-3 py-2 rounded-md border hover:bg-gray-50" aria-label={`Reorder items from order ${order.reference || order.id || ''}`}>Reorder</button>
                     </PressScale>
                   </div>
                 </div>
-              </div>
+                <span id={descId} className="sr-only">Placed on {dateStr}. {order.total != null ? `Total ₹${Number(order.total).toFixed(2)}.` : ''} Status {status}. {isDelivered ? 'Delivered.' : status === 'cancelled' ? 'Cancelled.' : `Estimated arrival ${etaRange}.`}</span>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
     </PageFade>
   )

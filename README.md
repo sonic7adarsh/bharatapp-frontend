@@ -22,5 +22,17 @@
   - GET /api/stores/{id}
   - POST /api/stores
 
+## Deploy to Netlify (Free)
+
+1. Push this project to a GitHub repository.
+2. In Netlify, click “Add new site” → “Import from Git”. Select your repo.
+3. Build settings:
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+   - Environment variables (optional, for real backend):
+     - `VITE_API_BASE` → your API base URL (e.g. `https://api.yourdomain.com`)
+     - `VITE_TENANT_DOMAIN` → storefront tenant id/domain (e.g. `demo-store`)
+4. Deploy. The included `netlify.toml` sets SPA redirects (`/*` → `/index.html`) so routes work on refresh.
+
 ## Next steps
 - Add auth/login, product CRUD, order flows and a real backend (Spring Boot sample provided by the team).

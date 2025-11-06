@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { SkeletonDashboard } from '../components/Skeletons'
 import { PageFade, PressScale } from '../motion/presets'
 import { Link } from 'react-router-dom'
+import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function StoreDashboard() {
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState([])
   const [periodDays, setPeriodDays] = useState(7)
+  const { announce } = useAnnouncer()
 
   useEffect(() => {
     // Simulate loading and read local orders (seeded in dev)
@@ -21,14 +23,6 @@ export default function StoreDashboard() {
     }, 400)
     return () => clearTimeout(t)
   }, [])
-
-  if (loading) {
-    return (
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        <SkeletonDashboard />
-      </main>
-    )
-  }
   const metrics = useMemo(() => {
     const totalOrders = orders.length
     const revenue = orders.reduce((sum, o) => sum + Number(o.total || o.totals?.payable || 0), 0)
@@ -55,8 +49,10 @@ export default function StoreDashboard() {
       const d = new Date(today)
       d.setDate(today.getDate() - ((periodDays - 1) - i))
       const key = d.toISOString().slice(0,10)
-      const count = orders.filter(o => String(o.createdAt || o.date || '').slice(0,10) === key).length
-      return { key, label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), count }
+      const dayOrders = orders.filter(o => String(o.createdAt || o.date || '').slice(0,10) === key)
+      const count = dayOrders.length
+      const payable = dayOrders.reduce((sum, o) => sum + Number(o.total || o.totals?.payable || 0), 0)
+      return { key, label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), count, payable }
     })
     const maxCount = Math.max(1, ...days.map(d => d.count))
     // Revenue growth: current period vs previous period
@@ -82,10 +78,27 @@ export default function StoreDashboard() {
     return { totalOrders, revenue, avgOrderValue, itemsSold, topProducts, subtotal, pmCounts, days, maxCount, currRevenue, prevRevenue, growthPct }
   }, [orders, periodDays])
 
+  // Announce revenue growth direction when period or growth changes
+  useEffect(() => {
+    if (loading) return
+    const dir = metrics.growthPct >= 0 ? 'up' : 'down'
+    const pct = Math.abs(metrics.growthPct).toFixed(1)
+    announce(`Revenue ${dir} ${pct}% versus previous ${periodDays} days.`, 'polite')
+  }, [metrics.growthPct, periodDays, loading, announce])
+
+  if (loading) {
+    return (
+      <main className="max-w-5xl mx-auto px-4 py-6" aria-busy="true">
+        <div role="status" aria-live="polite" className="sr-only">Loading store dashboard…</div>
+        <SkeletonDashboard />
+      </main>
+    )
+  }
+
   return (
     <PageFade className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Store Dashboard</h2>
+        <h1 className="text-2xl font-bold">Store Dashboard</h1>
         <div className="flex items-center gap-3">
           <PressScale className="inline-block">
             <Link to="/products/add" className="btn-primary">Add Product</Link>
@@ -126,9 +139,10 @@ export default function StoreDashboard() {
                 <button
                   key={p}
                   type="button"
-                  onClick={() => setPeriodDays(p)}
+                  onClick={() => { setPeriodDays(p); announce(`Sales period set to ${p} days.`, 'polite') }}
                   className={`px-3 py-1.5 rounded-full text-sm border ${periodDays === p ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
                   aria-label={`Show last ${p} days`}
+                  aria-pressed={periodDays === p}
                 >
                   Last {p}d
                 </button>
@@ -163,8 +177,8 @@ export default function StoreDashboard() {
       </div>
 
       {/* Sales Trend */}
-      <div className="bg-white rounded-lg shadow-sm mt-8">
-        <div className="p-4 border-b font-semibold">Sales Trend (last {periodDays} days)</div>
+      <section className="bg-white rounded-lg shadow-sm mt-8" aria-labelledby="sales-trend-heading">
+        <div id="sales-trend-heading" className="p-4 border-b font-semibold">Sales Trend (last {periodDays} days)</div>
         <div className="p-4">
           <div className="flex items-end gap-2 h-28">
             {metrics.days.map(d => (
@@ -172,15 +186,20 @@ export default function StoreDashboard() {
                 <div
                   className="w-8 bg-brand-accent/70 hover:bg-brand-accent transition-all"
                   style={{ height: `${Math.max(8, Math.round((d.count / metrics.maxCount) * 100))}%` }}
-                  aria-label={`${d.label} orders: ${d.count}`}
+                  aria-hidden="true"
                   title={`${d.label}: ${d.count}`}
                 />
                 <div className="text-[11px] text-gray-600 mt-1">{d.label}</div>
               </div>
             ))}
           </div>
+          <ul className="sr-only" aria-label={`Sales trend values for last ${periodDays} days`}>
+            {metrics.days.map(d => (
+              <li key={`sr-${d.key}`}>{d.label}: ₹{Number(d.payable || 0).toFixed(0)} with {d.count} orders</li>
+            ))}
+          </ul>
         </div>
-      </div>
+      </section>
 
       {/* Top Products */}
       <div className="bg-white rounded-lg shadow-sm mt-8">
@@ -189,20 +208,20 @@ export default function StoreDashboard() {
           <div className="p-4 text-gray-600">No product performance available.</div>
         ) : (
           <div className="p-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table role="table" aria-label="Top products" className="min-w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-600">
-                  <th className="pb-2 pr-4">Product</th>
-                  <th className="pb-2 pr-4">Units</th>
-                  <th className="pb-2 pr-4">Revenue</th>
+                <tr role="row" className="text-left text-gray-600">
+                  <th role="columnheader" scope="col" className="pb-2 pr-4">Product</th>
+                  <th role="columnheader" scope="col" className="pb-2 pr-4">Units</th>
+                  <th role="columnheader" scope="col" className="pb-2 pr-4">Revenue</th>
                 </tr>
               </thead>
               <tbody>
                 {metrics.topProducts.map(p => (
-                  <tr key={p.id} className="border-t">
-                    <td className="py-2 pr-4 font-medium">{p.name}</td>
-                    <td className="py-2 pr-4">{p.units}</td>
-                    <td className="py-2 pr-4">₹{p.revenue.toFixed(0)}</td>
+                  <tr role="row" key={p.id} className="border-t">
+                    <td role="cell" className="py-2 pr-4 font-medium">{p.name}</td>
+                    <td role="cell" className="py-2 pr-4">{p.units}</td>
+                    <td role="cell" className="py-2 pr-4">₹{p.revenue.toFixed(0)}</td>
                   </tr>
                 ))}
               </tbody>

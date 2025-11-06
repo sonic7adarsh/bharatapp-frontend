@@ -35,6 +35,12 @@ export function AuthProvider({ children }) {
     initializeAuth()
   }, [token])
 
+  // Expose a global logout hook for non-React callers (e.g., axios interceptors)
+  useEffect(() => {
+    window.__logout = logout
+    return () => { delete window.__logout }
+  }, [])
+
   // Login function that accepts credentials and returns user data
   const login = async (credentials) => {
     try {
@@ -47,6 +53,23 @@ export function AuthProvider({ children }) {
       console.error('Login failed:', error)
       return { 
         success: false, 
+        error: error.response?.data?.message || 'Login failed. Please try again.'
+      }
+    }
+  }
+
+  // Login with phone/OTP and update context immediately
+  const loginWithPhone = async (payload) => {
+    try {
+      const data = await authService.loginWithPhone(payload)
+      const { token: newToken, user: userData } = data
+      setToken(newToken)
+      setUser(userData)
+      return { success: true, user: userData }
+    } catch (error) {
+      console.error('Phone login failed:', error)
+      return {
+        success: false,
         error: error.response?.data?.message || 'Login failed. Please try again.'
       }
     }
@@ -84,9 +107,15 @@ export function AuthProvider({ children }) {
       token, 
       user, 
       login, 
+      loginWithPhone,
       logout, 
       register, 
       isAuthenticated,
+      // role helpers
+      role: String(user?.role || '').toLowerCase(),
+      isSeller: ['seller','vendor'].includes(String(user?.role || '').toLowerCase()),
+      isAdmin: String(user?.role || '').toLowerCase() === 'admin',
+      isConsumer: ['customer','consumer'].includes(String(user?.role || '').toLowerCase()),
       loading
     }}>
       {children}

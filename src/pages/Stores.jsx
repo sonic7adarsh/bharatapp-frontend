@@ -4,7 +4,9 @@ import { STORES } from '../data/stores'
 import { SkeletonStoreCard } from '../components/Skeletons'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
-import { PageFade, HoverLiftCard, PressScale } from '../motion/presets'
+import { PageFade, HoverLiftCard, PressScale, DrawerRight } from '../motion/presets'
+import { useAnnouncer } from '../context/AnnouncerContext'
+import useAuth from '../hooks/useAuth'
 
 export default function Stores() {
   const [stores, setStores] = useState([])
@@ -16,7 +18,10 @@ export default function Stores() {
   const [city, setCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
   const [sortBy, setSortBy] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const location = useLocation()
+  const { announce } = useAnnouncer()
+  const { isSeller, isAdmin } = useAuth()
 
   const categories = useMemo(() => (
     ['All', 'Grocery', 'Electronics', 'Fashion', 'Healthcare']
@@ -24,6 +29,7 @@ export default function Stores() {
 
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
     setLoading(true)
     const handler = setTimeout(async () => {
       try {
@@ -31,11 +37,13 @@ export default function Stores() {
         if (search.trim()) params.search = search.trim()
         if (category && category !== 'All' && category !== '') params.category = category
         if (city && city !== 'All' && city !== '') params.city = city
-        const res = await storeService.getStores(params)
+        const res = await storeService.getStores(params, { params, signal: controller.signal })
         if (!active) return
         setStores(Array.isArray(res) ? res : [])
         setError('')
       } catch (err) {
+        // Ignore cancellations
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
         console.error('Failed to fetch stores:', err)
         if (!active) return
         // Fallback to local sample data so the page remains usable
@@ -56,9 +64,10 @@ export default function Stores() {
 
     return () => {
       active = false
+      controller.abort()
       clearTimeout(handler)
     }
-  }, [search, category])
+  }, [search, category, city])
 
   // initialize from URL query params
   useEffect(() => {
@@ -112,6 +121,24 @@ export default function Stores() {
     return list
   }, [stores, sortBy, minRating])
 
+  // Announce loading and results
+  useEffect(() => {
+    if (loading) {
+      announce('Loading stores…', 'polite')
+    }
+  }, [loading])
+
+  useEffect(() => {
+    if (loading) return
+    if (error) {
+      announce(`Error loading stores: ${error}`, 'polite')
+      return
+    }
+    const scopeCity = city ? ` in ${city}` : ''
+    const scopeCat = category ? ` for ${category}` : ''
+    announce(sortedStores.length === 0 ? 'No stores found.' : `Found ${sortedStores.length} stores${scopeCity}${scopeCat}.`, 'polite')
+  }, [loading, error, sortedStores.length, city, category])
+
   const isHospitalityCat = (c = '') => {
     const x = String(c).toLowerCase()
     return x.includes('hotel') || x.includes('hospitality') || x.includes('hospital')
@@ -145,81 +172,191 @@ export default function Stores() {
   return (
     <PageFade className="max-w-5xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-4">Explore Local Stores</h1>
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
+      <section role="region" aria-labelledby="stores-filters-heading" className="sticky top-16 z-10 bg-white/90 backdrop-blur rounded-xl shadow-sm p-3 mb-4">
+        <h2 id="stores-filters-heading" className="sr-only">Store Filters</h2>
+        <div className="flex flex-col gap-2">
+          {/* Row 1: Search + Sort + CTA */}
+          <div className="flex items-center gap-2 flex-wrap">
             <label htmlFor="stores-search" className="sr-only">Search stores</label>
             <input
               id="stores-search"
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by store name"
-              className="border rounded px-3 py-2 w-full"
+              placeholder="Search stores"
+              className="border rounded-full px-4 py-2 text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-brand-primary"
             />
+            {/* Inline sort moved into drawer for cleaner layout */}
+            <div role="group" aria-label="Sort stores" className="hidden rounded-full border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSortBy('')}
+                aria-pressed={sortBy === ''}
+                className={`px-3 py-2 text-sm ${sortBy === '' ? 'bg-brand-accent text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >Default</button>
+              <button
+                type="button"
+                onClick={() => setSortBy('rating')}
+                aria-pressed={sortBy === 'rating'}
+                className={`px-3 py-2 text-sm border-l ${sortBy === 'rating' ? 'bg-brand-accent text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >Top Rated</button>
+              <button
+                type="button"
+                onClick={() => setSortBy('name')}
+                aria-pressed={sortBy === 'name'}
+                className={`px-3 py-2 text-sm border-l ${sortBy === 'name' ? 'bg-brand-accent text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >Name A–Z</button>
+            </div>
+            {/* Filters toggle (mobile + desktop) */}
+            <PressScale className="inline-block ml-auto">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-full border text-sm bg-white hover:bg-gray-50"
+                aria-controls="stores-filters-drawer"
+                aria-expanded={filtersOpen ? 'true' : 'false'}
+                onClick={() => setFiltersOpen(true)}
+              >Filters</button>
+            </PressScale>
+            {(isSeller || isAdmin) && (
+              <div className="ml-auto">
+                <PressScale className="inline-block">
+                  <Link
+                    to="/onboard"
+                    aria-label="Onboard your store"
+                    className="inline-flex items-center justify-center px-3 py-2 rounded-full border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm"
+                  >
+                    Onboard Your Store
+                  </Link>
+                </PressScale>
+              </div>
+            )}
           </div>
-          <div>
-            <label htmlFor="stores-category" className="sr-only">Category</label>
-            <select
-              id="stores-category"
-              value={category}
-              onChange={e => setCategory(e.target.value === 'All' ? '' : e.target.value)}
-              className="border rounded px-3 py-2 w-full text-sm"
-            >
-              {categories.map(c => (
-                <option key={c} value={c}>{c}</option>
+          {/* Row 2 moved into drawer to reduce clutter on web */}
+          <div className="hidden items-center gap-2 overflow-x-auto py-1">
+            <div role="tablist" aria-label="Categories" className="flex items-center gap-2">
+              {categories.map(c => {
+                const active = (c === 'All' ? '' : c) === category
+                return (
+                  <button
+                    key={c}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setCategory(c === 'All' ? '' : c)}
+                    className={`px-3 py-1.5 rounded-full text-sm border ${active ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  >{c}</button>
+                )
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              {[0, 4.0, 4.5, 4.8].map(r => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setMinRating(r)}
+                  aria-pressed={Number(minRating) === r}
+                  className={`px-3 py-1.5 rounded-full text-sm border ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {r === 0 ? 'All ratings' : `⭐ ${r}+`}
+                </button>
               ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="stores-city" className="sr-only">City</label>
-            <input
-              id="stores-city"
-              type="text"
-              value={city}
-              onChange={e => setCity(e.target.value)}
-              placeholder={detectingCity && !city ? 'Detecting city…' : 'City (optional)'}
-              className="border rounded px-3 py-2 w-full"
-            />
-          </div>
-          <div>
-            <label htmlFor="stores-sort" className="sr-only">Sort by</label>
-            <select
-              id="stores-sort"
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
-              className="border rounded px-3 py-2 w-full text-sm"
-            >
-              <option value="">Sort</option>
-              <option value="rating">Top Rated</option>
-              <option value="name">Name A–Z</option>
-            </select>
-          </div>
-          <PressScale className="inline-block">
-            <Link
-              to="/onboard"
-              aria-label="Onboard your store"
-              className="inline-flex items-center justify-center px-3 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm"
-            >
-              Onboard Your Store
-            </Link>
-          </PressScale>
-        </div>
-        {/* Rating filters */}
-        <div className="mt-3 flex flex-wrap gap-2 items-center">
-          {[0, 4.0, 4.5, 4.8].map(r => (
+            </div>
             <button
-              key={r}
               type="button"
-              onClick={() => setMinRating(r)}
-              aria-pressed={Number(minRating) === r}
-              className={`px-3 py-1 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-brand-primary ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-            >
-              {r === 0 ? 'All ratings' : `${r}+`}
-            </button>
-          ))}
+              onClick={() => { setSearch(''); setCategory(''); setMinRating(0); setSortBy(''); announce('Filters reset.', 'polite') }}
+              className="ml-auto px-3 py-1.5 rounded-full text-sm bg-gray-100 hover:bg-gray-200"
+              aria-label="Reset filters"
+            >Reset</button>
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* Mobile Filters Drawer */}
+      <DrawerRight
+        isOpen={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        ariaLabel="Store Filters"
+        id="stores-filters-drawer"
+        widthClass="w-full sm:w-[380px]"
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Filters</h3>
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-full text-sm bg-gray-100 hover:bg-gray-200"
+              onClick={() => { setSearch(''); setCategory(''); setMinRating(0); setSortBy(''); announce('Filters reset.', 'polite') }}
+              aria-label="Reset filters"
+            >Reset</button>
+          </div>
+          <div className="mt-4 space-y-5">
+            <div>
+              <label className="text-sm font-medium">Sort</label>
+              <div className="mt-1 text-xs text-gray-500">Selected: {sortBy === '' ? 'Default' : (sortBy === 'rating' ? 'Top Rated' : (sortBy === 'name' ? 'Name A–Z' : 'Default'))}</div>
+              {/* controls on a separate line below the label */}
+              <div role="group" aria-label="Sort stores" className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSortBy('')}
+                  aria-pressed={sortBy === ''}
+                  className={`px-3 py-1.5 text-sm rounded-full border ${sortBy === '' ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >Default</button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('rating')}
+                  aria-pressed={sortBy === 'rating'}
+                  className={`px-3 py-1.5 text-sm rounded-full border ${sortBy === 'rating' ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >Top Rated</button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('name')}
+                  aria-pressed={sortBy === 'name'}
+                  className={`px-3 py-1.5 text-sm rounded-full border ${sortBy === 'name' ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >Name A–Z</button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Categories</label>
+              <div role="tablist" aria-label="Categories" className="mt-2 flex items-center gap-2 flex-wrap">
+                {categories.map(c => {
+                  const active = (c === 'All' ? '' : c) === category
+                  return (
+                    <button
+                      key={c}
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setCategory(c === 'All' ? '' : c)}
+                      className={`px-3 py-1.5 rounded-full text-sm border ${active ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                    >{c}</button>
+                  )
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Minimum Rating</label>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {[0, 4.0, 4.5, 4.8].map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setMinRating(r)}
+                    aria-pressed={Number(minRating) === r}
+                    className={`px-3 py-1.5 rounded-full text-sm border ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    {r === 0 ? 'All ratings' : `⭐ ${r}+`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 border-t mt-2">
+              <button
+                type="button"
+                className="w-full px-3 py-2 rounded-md bg-brand-primary text-white"
+                onClick={() => setFiltersOpen(false)}
+              >Apply Filters</button>
+            </div>
+          </div>
+        </div>
+      </DrawerRight>
 
       {/* Coupon applied hint */}
       {(() => {
@@ -233,25 +370,42 @@ export default function Stores() {
         )
       })()}
 
+      <h2 id="stores-results-heading" className="sr-only">Store Results</h2>
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div role="status" aria-live="polite" aria-busy="true" aria-label="Loading stores" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, idx) => (<SkeletonStoreCard key={idx} />))}
         </div>
       ) : error ? (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+        <div role="alert" aria-live="assertive" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
           {error}
         </div>
       ) : sortedStores.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
+        <div role="status" aria-live="polite" className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
           No stores found.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <ul role="list" aria-labelledby="stores-results-heading" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {shopsStores.map(store => (
-            <Link to={`/store/${store.id}`} key={store.id} className="block">
+            <li key={store.id} className="list-none">
+            <Link
+              to={`/store/${store.id}`}
+              aria-label={`View ${store.name} details`}
+              className="block"
+              onMouseEnter={() => { import('../pages/StoreDetail'); storeService.prefetchStoreDetail(store.id) }}
+            >
               <HoverLiftCard className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-elev-2 transition-shadow duration-300 flex flex-col h-full">
                 {store.image && (
-                  <img src={store.image} alt={store.name} className="w-full h-40 object-cover" />
+                  <img
+                    src={store.image}
+                    alt={store.name}
+                    className="w-full h-40 object-cover"
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
+                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  />
                 )}
                 <div className="p-4 flex-1 flex flex-col">
                   <div className="flex items-start justify-between">
@@ -273,17 +427,18 @@ export default function Stores() {
                 </div>
                 <div className="px-4 pb-4">
                   <div className="mt-2 h-px bg-gray-100" />
-                  <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-3 flex items-center justify-between gap-3">
                     <span className="text-sm text-gray-600">Explore products and offers</span>
-                    <PressScale className="inline-block">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-md border border-brand-primary text-brand-primary text-sm hover:bg-orange-50">View Store</span>
-                    </PressScale>
+                    <span className="inline-flex items-center gap-1 text-brand-accent text-sm">View Store
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
                   </div>
                 </div>
               </HoverLiftCard>
             </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </PageFade>
   )

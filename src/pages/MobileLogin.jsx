@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import { toast } from 'react-toastify'
 import { PageFade, PressScale } from '../motion/presets'
+import FormAlert from '../components/FormAlert'
 
 export default function MobileLogin() {
   const [step, setStep] = useState('phone') // 'phone' or 'otp'
@@ -10,8 +11,11 @@ export default function MobileLogin() {
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
-  const { login } = useAuth()
+  const [submitted, setSubmitted] = useState(false)
+  const [formError, setFormError] = useState('')
+  const { loginWithPhone } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -28,12 +32,16 @@ export default function MobileLogin() {
 
   const handleSendOTP = async (e) => {
     e.preventDefault()
+    setSubmitted(true)
     
     if (!validatePhone(phone)) {
-      toast.error('Please enter a valid 10-digit mobile number')
+      const msg = 'Please enter a valid 10-digit mobile number'
+      setFormError(msg)
+      toast.error(msg)
       return
     }
 
+    setFormError('')
     setLoading(true)
     try {
       // Simulate API call to send OTP
@@ -44,6 +52,7 @@ export default function MobileLogin() {
       
       toast.success(`OTP sent to +91 ${phone}`)
       setStep('otp')
+      setSubmitted(false)
       setCountdown(30) // 30 seconds countdown
     } catch (error) {
       toast.error('Failed to send OTP. Please try again.')
@@ -54,36 +63,28 @@ export default function MobileLogin() {
 
   const handleVerifyOTP = async (e) => {
     e.preventDefault()
+    setSubmitted(true)
     
     if (otp.length !== 6) {
-      toast.error('Please enter a valid 6-digit OTP')
+      const msg = 'Please enter a valid 6-digit OTP'
+      setFormError(msg)
+      toast.error(msg)
       return
     }
 
+    setFormError('')
     setLoading(true)
     try {
-      // Simulate API call to verify OTP
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // In real implementation, verify OTP with your service
-      // const response = await authService.verifyOTP(phone, otp)
-      
-      // Mock successful login
-      const mockUser = {
-        id: Date.now(),
-        phone: phone,
-        name: `User ${phone.slice(-4)}`,
-        isVerified: true
+      // Use AuthContext to perform phone login and update context state immediately
+      const result = await loginWithPhone({ phone, otp })
+      if (result.success) {
+        toast.success('Login successful!')
+        const to = location.state?.from || '/dashboard'
+        navigate(to, { replace: true })
+        setSubmitted(false)
+      } else {
+        toast.error(result.error || 'Invalid OTP. Please try again.')
       }
-      
-      const mockToken = 'mock-jwt-token-' + Date.now()
-      
-      // Store in localStorage (your auth service should handle this)
-      localStorage.setItem('token', mockToken)
-      localStorage.setItem('user', JSON.stringify(mockUser))
-      
-      toast.success('Login successful!')
-      navigate('/')
     } catch (error) {
       toast.error('Invalid OTP. Please try again.')
     } finally {
@@ -119,7 +120,7 @@ export default function MobileLogin() {
   }
 
   return (
-    <PageFade className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <PageFade className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" aria-labelledby="mobile-login-title">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-full flex items-center justify-center mb-4">
@@ -127,7 +128,7 @@ export default function MobileLogin() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 id="mobile-login-title" className="text-3xl font-bold text-gray-900">
             {step === 'phone' ? 'Enter Mobile Number' : 'Verify OTP'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -140,7 +141,8 @@ export default function MobileLogin() {
 
         <div className="bg-white rounded-xl shadow-lg p-8">
           {step === 'phone' ? (
-            <form onSubmit={handleSendOTP} className="space-y-6">
+            <form onSubmit={handleSendOTP} className="space-y-6" aria-describedby="phone-help" aria-labelledby="mobile-login-title">
+              <FormAlert message={formError} />
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                   Mobile Number
@@ -158,11 +160,14 @@ export default function MobileLogin() {
                     placeholder="9876543210"
                     maxLength="10"
                     required
+                    aria-invalid={!validatePhone(phone) && submitted}
+                    aria-describedby="phone-help"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Enter your 10-digit mobile number
-                </p>
+                <p id="phone-help" className="mt-1 text-xs text-gray-500">Enter your 10-digit mobile number</p>
+                {(!validatePhone(phone) && (submitted || phone)) && (
+                  <p className="mt-1 text-xs text-red-600" aria-live="polite">Please enter a valid 10-digit mobile number.</p>
+                )}
               </div>
 
               <PressScale className="block">
@@ -170,6 +175,7 @@ export default function MobileLogin() {
                   type="submit"
                   disabled={loading || phone.length !== 10}
                   className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  aria-busy={loading}
                 >
                   {loading ? (
                     <div className="flex items-center">
@@ -186,7 +192,8 @@ export default function MobileLogin() {
               </PressScale>
             </form>
           ) : (
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
+            <form onSubmit={handleVerifyOTP} className="space-y-6" aria-describedby="otp-help" aria-labelledby="mobile-login-title">
+              <FormAlert message={formError} />
               <div>
                 <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
                   Enter OTP
@@ -200,10 +207,13 @@ export default function MobileLogin() {
                   placeholder="123456"
                   maxLength="6"
                   required
+                  aria-invalid={(otp.length !== 6) && submitted}
+                  aria-describedby="otp-help"
                 />
-                <p className="mt-1 text-xs text-gray-500 text-center">
-                  Enter the 6-digit verification code
-                </p>
+                <p id="otp-help" className="mt-1 text-xs text-gray-500 text-center">Enter the 6-digit verification code</p>
+                {(otp.length !== 6) && (submitted || otp) && (
+                  <p className="mt-1 text-xs text-red-600 text-center" aria-live="polite">Please enter a valid 6-digit OTP.</p>
+                )}
               </div>
 
               <PressScale className="block">
@@ -211,6 +221,7 @@ export default function MobileLogin() {
                   type="submit"
                   disabled={loading || otp.length !== 6}
                   className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  aria-busy={loading}
                 >
                   {loading ? (
                     <div className="flex items-center">

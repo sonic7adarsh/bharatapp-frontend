@@ -4,7 +4,9 @@ import { STORES } from '../data/stores'
 import { SkeletonStoreCard } from '../components/Skeletons'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
-import { PageFade, HoverLiftCard, PressScale } from '../motion/presets'
+import { PageFade, HoverLiftCard, PressScale, DrawerRight } from '../motion/presets'
+import { useAnnouncer } from '../context/AnnouncerContext'
+import useAuth from '../hooks/useAuth'
 
 export default function Hotels() {
   const [stores, setStores] = useState([])
@@ -15,21 +17,26 @@ export default function Hotels() {
   const [detectingCity, setDetectingCity] = useState(false)
   const [sortBy, setSortBy] = useState('')
   const [minRating, setMinRating] = useState(0)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const location = useLocation()
+  const { announce } = useAnnouncer()
+  const { isSeller, isAdmin } = useAuth()
 
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
     setLoading(true)
     const handler = setTimeout(async () => {
       try {
         const params = { category: 'Hotels' }
         if (search.trim()) params.search = search.trim()
         if (city && city !== 'All' && city !== '') params.city = city
-        const res = await storeService.getStores(params)
+        const res = await storeService.getStores(params, { params, signal: controller.signal })
         if (!active) return
         setStores(Array.isArray(res) ? res : [])
         setError('')
       } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
         console.error('Failed to fetch hotels:', err)
         if (!active) return
         const q = (search || '').toLowerCase()
@@ -46,7 +53,7 @@ export default function Hotels() {
       }
     }, 400)
 
-    return () => { active = false; clearTimeout(handler) }
+    return () => { active = false; controller.abort(); clearTimeout(handler) }
   }, [search, city])
 
   useEffect(() => {
@@ -92,41 +99,169 @@ export default function Hotels() {
     return list
   }, [stores, sortBy, minRating])
 
+  useEffect(() => {
+    if (loading) {
+      announce('Loading hotels…', 'polite')
+      return
+    }
+    if (error) {
+      announce(`Error loading hotels: ${error}`, 'polite')
+      return
+    }
+    const scopeCity = city ? ` in ${city}` : ''
+    announce(sortedStores.length === 0 ? 'No hotels found.' : `Found ${sortedStores.length} hotels${scopeCity}.`, 'polite')
+  }, [loading, error, sortedStores.length, city])
+
   return (
     <PageFade className="max-w-5xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-4">Explore Local Hotels</h1>
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search hotels by name..."
-            className="border rounded px-3 py-2 w-full"
-          />
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="border rounded px-3 py-2 w-full text-sm"
-          >
-            <option value="">Sort</option>
-            <option value="rating">Top Rated</option>
-            <option value="name">Name A–Z</option>
-          </select>
-          <select
-            value={minRating}
-            onChange={e => setMinRating(Number(e.target.value))}
-            className="border rounded px-3 py-2 w-full text-sm"
-          >
-            {[0, 4.0, 4.5, 4.8].map(r => (
-              <option key={r} value={r}>{r === 0 ? 'All ratings' : `${r}+`}</option>
-            ))}
-          </select>
-          <PressScale className="inline-block">
-            <Link to="/onboard" className="btn-primary">List Your Hotel</Link>
-          </PressScale>
+      <section role="region" aria-labelledby="hotels-filters-heading" className="sticky top-16 z-10 bg-white/90 backdrop-blur rounded-xl shadow-sm p-3 mb-4">
+        <h2 id="hotels-filters-heading" className="sr-only">Hotel Filters</h2>
+        <div className="flex flex-col gap-2">
+          {/* Row 1: Search + Sort + CTA */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <label htmlFor="hotels-search" className="sr-only">Search hotels</label>
+            <input
+              id="hotels-search"
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search hotels"
+              className="border rounded-full px-4 py-2 text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            />
+            {/* Inline sort moved into drawer for consistency with Stores */}
+            <div role="group" aria-label="Sort hotels" className="hidden rounded-full border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSortBy('')}
+                aria-pressed={sortBy === ''}
+                className={`px-3 py-2 text-sm ${sortBy === '' ? 'bg-brand-accent text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >Default</button>
+              <button
+                type="button"
+                onClick={() => setSortBy('rating')}
+                aria-pressed={sortBy === 'rating'}
+                className={`px-3 py-2 text-sm border-l ${sortBy === 'rating' ? 'bg-brand-accent text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >Top Rated</button>
+              <button
+                type="button"
+                onClick={() => setSortBy('name')}
+                aria-pressed={sortBy === 'name'}
+                className={`px-3 py-2 text-sm border-l ${sortBy === 'name' ? 'bg-brand-accent text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >Name A–Z</button>
+            </div>
+            {/* Filters toggle (mobile + desktop) */}
+            <PressScale className="inline-block ml-auto">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-full border text-sm bg-white hover:bg-gray-50"
+                aria-controls="hotels-filters-drawer"
+                aria-expanded={filtersOpen ? 'true' : 'false'}
+                onClick={() => setFiltersOpen(true)}
+              >Filters</button>
+            </PressScale>
+            {(isSeller || isAdmin) && (
+              <PressScale className="inline-block ml-auto">
+                <Link to="/onboard" className="inline-flex items-center justify-center px-3 py-2 rounded-full border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm">List Your Hotel</Link>
+              </PressScale>
+            )}
+          </div>
+          {/* Row 2: Ratings + Reset */}
+          {/* Row 2 moved into drawer to reduce clutter on web */}
+          <div className="hidden items-center gap-2 overflow-x-auto py-1">
+            <div className="flex items-center gap-2">
+              {[0, 4.0, 4.5, 4.8].map(r => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setMinRating(r)}
+                  aria-pressed={Number(minRating) === r}
+                  className={`px-3 py-1.5 rounded-full text-sm border ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {r === 0 ? 'All ratings' : `⭐ ${r}+`}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setMinRating(0); setSortBy(''); announce('Filters reset.', 'polite') }}
+              className="ml-auto px-3 py-1.5 rounded-full text-sm bg-gray-100 hover:bg-gray-200"
+              aria-label="Reset filters"
+            >Reset</button>
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* Mobile Filters Drawer */}
+      <DrawerRight
+        isOpen={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        ariaLabel="Hotel Filters"
+        id="hotels-filters-drawer"
+        widthClass="w-full sm:w-[380px]"
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Filters</h3>
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-full text-sm bg-gray-100 hover:bg-gray-200"
+              onClick={() => { setSearch(''); setMinRating(0); setSortBy(''); setCity(''); announce('Filters reset.', 'polite') }}
+              aria-label="Reset filters"
+            >Reset</button>
+          </div>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium">Sort</label>
+              <div className="mt-1 text-xs text-gray-500">Selected: {sortBy === '' ? 'Default' : (sortBy === 'rating' ? 'Top Rated' : (sortBy === 'name' ? 'Name A–Z' : 'Default'))}</div>
+              {/* controls on a separate line below the label */}
+              <div role="group" aria-label="Sort hotels" className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSortBy('')}
+                  aria-pressed={sortBy === ''}
+                  className={`px-3 py-1.5 text-sm rounded-full border ${sortBy === '' ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >Default</button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('rating')}
+                  aria-pressed={sortBy === 'rating'}
+                  className={`px-3 py-1.5 text-sm rounded-full border ${sortBy === 'rating' ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >Top Rated</button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('name')}
+                  aria-pressed={sortBy === 'name'}
+                  className={`px-3 py-1.5 text-sm rounded-full border ${sortBy === 'name' ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >Name A–Z</button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Minimum Rating</label>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {[0, 4.0, 4.5, 4.8].map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setMinRating(r)}
+                    aria-pressed={Number(minRating) === r}
+                    className={`px-3 py-1.5 rounded-full text-sm border ${Number(minRating) === r ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    {r === 0 ? 'All ratings' : `⭐ ${r}+`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                className="w-full px-3 py-2 rounded-md bg-brand-primary text-white"
+                onClick={() => setFiltersOpen(false)}
+              >Apply Filters</button>
+            </div>
+          </div>
+        </div>
+      </DrawerRight>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -143,7 +278,7 @@ export default function Hotels() {
               to={`/store/${store.id}`}
               key={store.id}
               className="block"
-              onMouseEnter={() => { import('../pages/StoreDetail') }}
+              onMouseEnter={() => { import('../pages/StoreDetail'); import('../pages/RoomBooking'); storeService.prefetchStoreDetail(store.id) }}
             >
               <HoverLiftCard className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-elev-2 transition-shadow duration-300">
                 {store.image && (

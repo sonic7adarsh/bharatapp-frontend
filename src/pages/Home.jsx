@@ -5,6 +5,7 @@ import { STORES } from '../data/stores'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
 import { PageFade, PressScale } from '../motion/presets'
+import useAuth from '../hooks/useAuth'
 
 export default function Home() {
   const [stores, setStores] = useState(STORES)
@@ -14,13 +15,17 @@ export default function Home() {
   const [detectedCity, setDetectedCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
   const navigate = useNavigate()
+  const { isSeller, isAdmin } = useAuth()
 
   useEffect(() => {
     // try fetching from backend; fallback to local sample data
+    const controller = new AbortController()
     setLoading(true)
-    storeService.getStores().then(res => {
-      if (res?.length) setStores(res)
-    }).catch(() => {}).finally(() => setLoading(false))
+    storeService.getStores(undefined, { signal: controller.signal })
+      .then(res => { if (res?.length) setStores(res) })
+      .catch(err => { if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return })
+      .finally(() => setLoading(false))
+    return () => { controller.abort() }
   }, [])
 
   // Exclude hospitality from Home featured list
@@ -219,11 +224,13 @@ export default function Home() {
               <h3 className="text-xl md:text-2xl font-bold">Own a local store?</h3>
               <p className="mt-1 opacity-90">Join BharatApp and reach nearby customers with ease.</p>
             </div>
-            <PressScale className="inline-block">
-              <Link to="/onboard" className="inline-flex items-center justify-center px-5 py-3 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">
-                Register Your Store
-              </Link>
-            </PressScale>
+            {(isSeller || isAdmin) && (
+              <PressScale className="inline-block">
+                <Link to="/onboard" className="inline-flex items-center justify-center px-5 py-3 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">
+                  Register Your Store
+                </Link>
+              </PressScale>
+            )}
           </div>
         </div>
       </section>

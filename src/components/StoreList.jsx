@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../lib/axios';
+import storeService from '../services/storeService';
 import StoreCard from './StoreCard';
 import { SkeletonStoreCard } from './Skeletons';
 
@@ -11,13 +12,15 @@ const StoreList = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchStores = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('/api/stores');
+        const response = await axios.get('/api/stores', { signal: controller.signal });
         setStores(response.data);
         setError(null);
       } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
         console.error('Error fetching stores:', err);
         setError('Failed to load stores. Please try again later.');
       } finally {
@@ -26,10 +29,11 @@ const StoreList = () => {
     };
 
     fetchStores();
+    return () => { controller.abort(); };
   }, []);
 
   const handleStoreClick = (storeId) => {
-    navigate(`/stores/${storeId}`);
+    navigate(`/store/${storeId}`);
   };
 
   if (loading) {
@@ -58,17 +62,31 @@ const StoreList = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" role="list">
       {stores.map((store) => (
-        <div 
-          key={store.id} 
-          onClick={() => handleStoreClick(store.id)}
-          className="cursor-pointer"
-        >
-          <StoreCard store={store} />
-        </div>
+        <li key={store.id} role="listitem">
+          <div
+            onClick={() => handleStoreClick(store.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                handleStoreClick(store.id)
+              }
+            }}
+            onMouseEnter={() => { import('../pages/StoreDetail'); storeService.prefetchStoreDetail(store.id) }}
+            onFocus={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
+            onTouchStart={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
+            className="cursor-pointer"
+            role="link"
+            tabIndex={0}
+            aria-labelledby={`store-${store.id}-name`}
+            aria-label={`View ${store.name} store details`}
+          >
+            <StoreCard store={store} />
+          </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 };
 

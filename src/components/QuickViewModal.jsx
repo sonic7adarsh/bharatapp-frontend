@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useCart from '../context/CartContext'
 import { ModalSlideUp } from '../motion/presets'
+import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function QuickViewModal({ isOpen, onClose, product, storeOpen = true, storeCategory, storeId }) {
   const { addItem, items, updateItemQuantity, removeItem } = useCart()
@@ -9,6 +10,7 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
   const [qty, setQty] = useState(1)
   const [variantKey, setVariantKey] = useState('standard')
   const [addonKeys, setAddonKeys] = useState(new Set())
+  const { announce } = useAnnouncer()
 
   const category = String(storeCategory || product?.storeCategory || '').toLowerCase()
   const isPharmacy = category.includes('pharmacy')
@@ -21,6 +23,14 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
     const cartItem = items.find(i => i.id === product.id)
     setQty(cartItem?.quantity || 1)
   }, [product, items])
+
+  // Announce modal open with product name and store state
+  useEffect(() => {
+    if (!isOpen) return
+    const name = product?.name || 'product'
+    const closedNote = !storeOpen ? ' Store is currently closed.' : ''
+    announce(`Quick view opened for ${name}.${closedNote}`, 'polite')
+  }, [isOpen])
 
   // Prefetch RoomBooking chunk when viewing hospitality product to reduce navigation lag
   useEffect(() => {
@@ -86,6 +96,7 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
     let id = `${product.id}__v:${variantKey}__a:${[...addonKeys].sort().join(',')}`
     // Tag pharmacy items so Checkout can require prescription only when needed
     addItem({ id, name, price: unitPrice, requiresPrescription: isPharmacy }, qty)
+    announce(`Added to cart: ${name}, quantity ${qty}.`, 'polite')
     onClose?.()
   }
 
@@ -97,7 +108,7 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
   const inc = () => setQty(qty + 1)
 
   return (
-    <ModalSlideUp isOpen={isOpen} onClose={onClose}>
+    <ModalSlideUp isOpen={isOpen} onClose={onClose} ariaLabel={`Quick view for ${product?.name || 'product'}`}>
       <div className="p-4">
         {!storeOpen && (
           <div className="mb-3 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded">

@@ -16,6 +16,7 @@ export default function AddProduct() {
   const [loading, setLoading] = useState(false)
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
   function onChange(e) {
     const { name, value } = e.target
@@ -72,6 +73,7 @@ export default function AddProduct() {
 
   async function onSubmit(e) {
     e.preventDefault()
+    setSubmitted(true)
     if (!validate()) return
     setLoading(true)
     try {
@@ -86,6 +88,7 @@ export default function AddProduct() {
       setForm({ name: '', price: '', description: '', category: '' })
       setImageFile(null)
       setImagePreview('')
+      setSubmitted(false)
       toast.success('Product added successfully.')
     } catch (err) {
       // Error toast handled globally via axios interceptor
@@ -104,7 +107,7 @@ export default function AddProduct() {
         <p className="text-xs text-gray-500 mt-1">Linked store: {storeId}</p>
       )}
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <form onSubmit={onSubmit} className="mt-6 space-y-4" aria-describedby="form-help">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="image">Product image (optional)</label>
           <input
@@ -114,12 +117,14 @@ export default function AddProduct() {
             accept="image/*"
             onChange={onImageChange}
             className="w-full"
+            aria-describedby="image-help"
           />
           {imagePreview && (
             <div className="mt-2">
               <img src={imagePreview} alt="Preview" className="h-32 w-auto rounded border" />
             </div>
           )}
+          <p id="image-help" className="text-xs text-gray-500 mt-1">Supported formats: JPG/PNG, max size 3MB.</p>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="name">Name</label>
@@ -131,7 +136,12 @@ export default function AddProduct() {
             className="w-full border rounded px-3 py-2"
             placeholder="e.g., Fresh Apples"
             required
+            aria-invalid={!form.name.trim() && submitted}
+            aria-describedby="name-help"
           />
+          {!form.name.trim() && submitted && (
+            <p id="name-help" className="text-xs text-red-600 mt-1">Product name is required.</p>
+          )}
         </div>
 
         <div>
@@ -146,7 +156,12 @@ export default function AddProduct() {
             className="w-full border rounded px-3 py-2"
             placeholder="e.g., 99.00"
             required
+            aria-invalid={(!(form.price && !isNaN(Number(form.price)) && Number(form.price) > 0)) && submitted}
+            aria-describedby="price-help"
           />
+          {(!(form.price && !isNaN(Number(form.price)) && Number(form.price) > 0)) && submitted && (
+            <p id="price-help" className="text-xs text-red-600 mt-1">Enter a positive price.</p>
+          )}
         </div>
 
         <div>
@@ -160,7 +175,12 @@ export default function AddProduct() {
             rows={4}
             placeholder="Brief details about the product"
             required
+            aria-invalid={(form.description.trim().length < 5) && submitted}
+            aria-describedby="description-help"
           />
+          {(form.description.trim().length < 5) && submitted && (
+            <p id="description-help" className="text-xs text-red-600 mt-1">Description must be at least 5 characters.</p>
+          )}
         </div>
 
         <div>
@@ -173,7 +193,12 @@ export default function AddProduct() {
             className="w-full border rounded px-3 py-2"
             placeholder="e.g., Grocery"
             required
+            aria-invalid={!form.category.trim() && submitted}
+            aria-describedby="category-help"
           />
+          {!form.category.trim() && submitted && (
+            <p id="category-help" className="text-xs text-red-600 mt-1">Category is required.</p>
+          )}
         </div>
 
         <div>
@@ -181,6 +206,7 @@ export default function AddProduct() {
             type="submit"
             disabled={loading}
             className="px-4 py-2 bg-indigo-600 text-white rounded disabled:opacity-60"
+            aria-busy={loading}
           >
             {loading ? 'Saving...' : 'Add Product'}
           </button>

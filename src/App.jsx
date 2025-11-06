@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import RoleProtectedRoute from './components/RoleProtectedRoute'
 const Home = lazy(() => import('./pages/Home'))
 const Stores = lazy(() => import('./pages/Stores'))
 const StoreOnboard = lazy(() => import('./pages/StoreOnboard'))
@@ -12,9 +13,12 @@ const Login = lazy(() => import('./pages/Login'))
 const MobileLogin = lazy(() => import('./pages/MobileLogin'))
 const Register = lazy(() => import('./pages/Register'))
 const Cart = lazy(() => import('./pages/Cart'))
-const Checkout = lazy(() => import('./pages/Checkout'))
+// Switch Checkout to static import to avoid dynamic import fetch errors
+import Checkout from './pages/Checkout'
 const CheckoutOptions = lazy(() => import('./pages/CheckoutOptions'))
 const MyOrders = lazy(() => import('./pages/MyOrders'))
+const MyBookings = lazy(() => import('./pages/MyBookings'))
+const BookingDetail = lazy(() => import('./pages/BookingDetail'))
 const AddProductPublic = lazy(() => import('./pages/AddProductPublic'))
 const OrderDetail = lazy(() => import('./pages/OrderDetail'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
@@ -29,7 +33,11 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/stores" element={<Stores />} />
           <Route path="/hotels" element={<Hotels />} />
-          <Route path="/onboard" element={<StoreOnboard />} />
+          <Route path="/onboard" element={
+            <RoleProtectedRoute roles={["seller","admin"]}>
+              <StoreOnboard />
+            </RoleProtectedRoute>
+          } />
           <Route path="/store/:id" element={<StoreDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/mobile-login" element={<MobileLogin />} />
@@ -39,23 +47,29 @@ export default function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<MyOrders />} />
           <Route path="/orders/:orderId" element={<OrderDetail />} />
+          <Route path="/bookings" element={<MyBookings />} />
+          <Route path="/bookings/:bookingId" element={<BookingDetail />} />
           <Route path="/book/:storeId/:roomId" element={<RoomBooking />} />
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <RoleProtectedRoute roles={["seller","admin"]}>
               <StoreDashboard />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           } />
           <Route path="/admin" element={
-            <ProtectedRoute>
+            <RoleProtectedRoute roles={["admin"]}>
               <AdminDashboard />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           } />
           <Route path="/products/add" element={
-            <ProtectedRoute>
+            <RoleProtectedRoute roles={["seller","admin"]}>
               <AddProduct />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           } />
-          <Route path="/products/add-open" element={<AddProductPublic />} />
+          <Route path="/products/add-open" element={
+            <RoleProtectedRoute roles={["seller","admin"]}>
+              <AddProductPublic />
+            </RoleProtectedRoute>
+          } />
         </Routes>
       </Suspense>
     </Layout>

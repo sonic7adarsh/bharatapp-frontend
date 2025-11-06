@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import useAuth from '../hooks/useAuth'
 import { PageFade, PressScale } from '../motion/presets'
+import FormAlert from '../components/FormAlert'
 
 export default function Login() {
   const [credentials, setCredentials] = useState({
@@ -10,8 +11,11 @@ export default function Login() {
     password: ''
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [formError, setFormError] = useState('')
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleChange = (e) => {
     const { id, value } = e.target
@@ -23,22 +27,26 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+    setSubmitted(true)
+
     if (!credentials.email || !credentials.password) {
-      toast.error('Please fill in all fields')
+      const msg = 'Please fill in all fields'
+      setFormError(msg)
+      toast.error(msg)
       return
     }
     
+    setFormError('')
     setIsLoading(true)
     
     try {
       const result = await login(credentials)
       
       if (result.success) {
-        // Redirect to dashboard after successful login
-        setTimeout(() => {
-          navigate('/dashboard')
-        }, 1000)
+        const role = String(result.user?.role || '').toLowerCase()
+        const defaultDest = (role === 'seller' || role === 'vendor' || role === 'admin') ? '/dashboard' : '/'
+        const to = location.state?.from || defaultDest
+        navigate(to, { replace: true })
       } else {
         // Error toast is handled globally via axios interceptor
       }
@@ -51,11 +59,12 @@ export default function Login() {
   }
 
   return (
-    <PageFade className="max-w-md mx-auto my-12 px-4">
+    <PageFade className="max-w-md mx-auto my-12 px-4" aria-labelledby="login-title">
       {/* Global ToastContainer is rendered in main.jsx */}
-      <h1 className="text-2xl font-bold text-center mb-6">Login to Your Account</h1>
+      <h1 id="login-title" className="text-2xl font-bold text-center mb-6">Login to Your Account</h1>
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} aria-describedby="login-help" aria-labelledby="login-title">
+          <FormAlert message={formError} />
           <div className="mb-4">
             <label htmlFor="email" className="block text-gray-700 mb-2">Email</label>
             <input
@@ -66,7 +75,12 @@ export default function Login() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter your email"
               required
+              aria-invalid={!credentials.email && submitted}
+              aria-describedby="email-help"
             />
+            {!credentials.email && submitted && (
+              <p id="email-help" className="text-xs text-red-600 mt-1" aria-live="polite">Email is required.</p>
+            )}
           </div>
           <div className="mb-6">
             <label htmlFor="password" className="block text-gray-700 mb-2">Password</label>
@@ -78,13 +92,19 @@ export default function Login() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter your password"
               required
+              aria-invalid={!credentials.password && submitted}
+              aria-describedby="password-help"
             />
+            {!credentials.password && submitted && (
+              <p id="password-help" className="text-xs text-red-600 mt-1" aria-live="polite">Password is required.</p>
+            )}
           </div>
           <PressScale className="block">
             <button
               type="submit"
               disabled={isLoading}
               className={`w-full btn-primary ${isLoading ? 'disabled:opacity-60' : ''}`}
+              aria-busy={isLoading}
             >
               {isLoading ? 'Logging in...' : 'Login'}
             </button>

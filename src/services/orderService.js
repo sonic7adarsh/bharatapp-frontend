@@ -14,9 +14,19 @@ const orderService = {
         reference,
         status: 'placed',
         total,
+        totals: payload?.totals,
         createdAt: new Date().toISOString(),
         items: (payload?.items || []).map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
         paymentMethod: payload?.paymentMethod || 'cod',
+        paymentInfo: payload?.paymentInfo || null,
+        transactionId: (payload?.paymentMethod === 'online')
+          ? (payload?.paymentInfo?.transactionId || payload?.paymentInfo?.paymentId || payload?.paymentInfo?.reference || payload?.paymentInfo?.orderId || null)
+          : null,
+        // Delivery details
+        address: payload?.address || null,
+        deliverySlot: payload?.deliverySlot || null,
+        deliveryInstructions: payload?.deliveryInstructions || '',
+        promo: payload?.promo || undefined,
         // Preserve booking-specific metadata for hospitality
         type: payload?.type || 'order',
         booking: payload?.booking,
@@ -26,10 +36,12 @@ const orderService = {
         notes: payload?.notes,
       }
       try {
-        const saved = localStorage.getItem('orders')
-        const orders = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        orders.unshift(order)
-        localStorage.setItem('orders', JSON.stringify(orders))
+        const isBooking = String(order.type || 'order') === 'room_booking'
+        const key = isBooking ? 'bookings' : 'orders'
+        const saved = localStorage.getItem(key)
+        const list = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
+        list.unshift(order)
+        localStorage.setItem(key, JSON.stringify(list))
       } catch {}
       return { success: true, order }
     }
@@ -42,9 +54,35 @@ const orderService = {
       try {
         const saved = localStorage.getItem('orders')
         const orders = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        if (orders.length > 0) return orders
+        // Filter out room bookings if mixed data exists
+        const filtered = orders.filter(o => String(o?.type || 'order') !== 'room_booking')
+        if (filtered.length > 0) return filtered
       } catch {}
       return generateOrders(5)
+    }
+  },
+  async getBookings() {
+    try {
+      const { data } = await axios.get('/api/storefront/bookings')
+      return data
+    } catch (e) {
+      try {
+        const saved = localStorage.getItem('bookings')
+        const bookings = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
+        if (bookings.length > 0) return bookings
+        // Migration: extract bookings from mixed 'orders' if present
+        const ordersSaved = localStorage.getItem('orders')
+        const mixed = Array.isArray(ordersSaved ? JSON.parse(ordersSaved) : null) ? JSON.parse(ordersSaved) : []
+        const extracted = mixed.filter(o => String(o?.type) === 'room_booking')
+        if (extracted.length > 0) {
+          localStorage.setItem('bookings', JSON.stringify(extracted))
+          // Optionally, write back filtered orders to keep stores separated
+          const remaining = mixed.filter(o => String(o?.type || 'order') !== 'room_booking')
+          localStorage.setItem('orders', JSON.stringify(remaining))
+          return extracted
+        }
+      } catch {}
+      return []
     }
   }
 }

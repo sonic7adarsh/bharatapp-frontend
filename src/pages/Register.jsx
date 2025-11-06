@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import useAuth from '../hooks/useAuth'
 import { PageFade, PressScale } from '../motion/presets'
+import FormAlert from '../components/FormAlert'
 
 export default function Register() {
   const [userData, setUserData] = useState({
@@ -11,6 +12,8 @@ export default function Register() {
     password: ''
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [formError, setFormError] = useState('')
   const { register } = useAuth()
   const navigate = useNavigate()
 
@@ -24,27 +27,31 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setSubmitted(true)
     
     if (!userData.name || !userData.email || !userData.password) {
-      toast.error('Please fill in all fields')
+      const msg = 'Please fill in all fields'
+      setFormError(msg)
+      toast.error(msg)
       return
     }
     
     if (userData.password.length < 6) {
-      toast.error('Password must be at least 6 characters long')
+      const msg = 'Password must be at least 6 characters long'
+      setFormError(msg)
+      toast.error(msg)
       return
     }
     
+    setFormError('')
     setIsLoading(true)
     
     try {
       const result = await register(userData)
       
       if (result.success) {
-        // Redirect to dashboard after successful registration
-        setTimeout(() => {
-          navigate('/dashboard')
-        }, 1000)
+        // Default new users to consumer experience
+        navigate('/', { replace: true })
       } else {
         // Error toast is handled globally via axios interceptor
       }
@@ -57,11 +64,12 @@ export default function Register() {
   }
 
   return (
-    <PageFade className="max-w-md mx-auto my-12 px-4">
+    <PageFade className="max-w-md mx-auto my-12 px-4" aria-labelledby="register-title">
       {/* Global ToastContainer is rendered in main.jsx */}
-      <h1 className="text-2xl font-bold text-center mb-6">Create an Account</h1>
+      <h1 id="register-title" className="text-2xl font-bold text-center mb-6">Create an Account</h1>
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} aria-describedby="register-help" aria-labelledby="register-title">
+          <FormAlert message={formError} />
           <div className="mb-4">
             <label htmlFor="name" className="block text-gray-700 mb-2">Full Name</label>
             <input
@@ -72,7 +80,12 @@ export default function Register() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-accent"
               placeholder="Enter your full name"
               required
+              aria-invalid={!userData.name && submitted}
+              aria-describedby="name-help"
             />
+            {!userData.name && submitted && (
+              <p id="name-help" className="text-xs text-red-600 mt-1" aria-live="polite">Name is required.</p>
+            )}
           </div>
           <div className="mb-4">
             <label htmlFor="email" className="block text-gray-700 mb-2">Email</label>
@@ -84,7 +97,12 @@ export default function Register() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter your email"
               required
+              aria-invalid={!userData.email && submitted}
+              aria-describedby="email-help"
             />
+            {!userData.email && submitted && (
+              <p id="email-help" className="text-xs text-red-600 mt-1" aria-live="polite">Email is required.</p>
+            )}
           </div>
           <div className="mb-4">
             <label htmlFor="password" className="block text-gray-700 mb-2">Password</label>
@@ -97,13 +115,19 @@ export default function Register() {
               placeholder="Create a password"
               required
               minLength={6}
+              aria-invalid={(userData.password.length < 6) && submitted}
+              aria-describedby="password-help"
             />
+            {(userData.password.length < 6) && submitted && (
+              <p id="password-help" className="text-xs text-red-600 mt-1" aria-live="polite">Password must be at least 6 characters.</p>
+            )}
           </div>
           <PressScale className="block">
             <button
               type="submit"
               disabled={isLoading}
               className={`w-full btn-primary ${isLoading ? 'disabled:opacity-60' : ''}`}
+              aria-busy={isLoading}
             >
               {isLoading ? 'Registering...' : 'Register'}
             </button>
