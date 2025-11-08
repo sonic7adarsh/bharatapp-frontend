@@ -212,6 +212,13 @@ const storeService = {
         const stores = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
         stores.push(mockStore)
         localStorage.setItem('stores', JSON.stringify(stores))
+        // Elevate current user to seller in mock mode after onboarding
+        const rawUser = localStorage.getItem('user')
+        if (rawUser) {
+          const u = JSON.parse(rawUser)
+          const next = { ...u, role: 'seller' }
+          localStorage.setItem('user', JSON.stringify(next))
+        }
       } catch {}
       return { success: true, store: mockStore }
     }

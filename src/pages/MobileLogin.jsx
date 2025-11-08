@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
+import authService from '../services/authService'
 import { toast } from 'react-toastify'
 import { PageFade, PressScale } from '../motion/presets'
 import FormAlert from '../components/FormAlert'
@@ -13,9 +14,13 @@ export default function MobileLogin() {
   const [countdown, setCountdown] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [formError, setFormError] = useState('')
-  const { loginWithPhone } = useAuth()
+  const { loginWithToken } = useAuth()
+  const [otpId, setOtpId] = useState('')
   const navigate = useNavigate()
   const location = useLocation()
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search])
+  const intent = params.get('intent') || ''
+  const signup = params.get('signup') === '1'
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -44,16 +49,13 @@ export default function MobileLogin() {
     setFormError('')
     setLoading(true)
     try {
-      // Simulate API call to send OTP
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // In real implementation, call your OTP service
-      // await authService.sendOTP(phone)
-      
+      const res = await authService.sendOTP({ phone: `+91${phone}`, channel: 'sms' })
+      const ttl = Number(res?.ttlSeconds || 30)
+      if (res?.otpId) setOtpId(res.otpId)
       toast.success(`OTP sent to +91 ${phone}`)
       setStep('otp')
       setSubmitted(false)
-      setCountdown(30) // 30 seconds countdown
+      setCountdown(Math.max(10, Math.min(ttl, 60)))
     } catch (error) {
       toast.error('Failed to send OTP. Please try again.')
     } finally {
@@ -75,18 +77,17 @@ export default function MobileLogin() {
     setFormError('')
     setLoading(true)
     try {
-      // Use AuthContext to perform phone login and update context state immediately
-      const result = await loginWithPhone({ phone, otp })
-      if (result.success) {
-        toast.success('Login successful!')
-        const to = location.state?.from || '/dashboard'
-        navigate(to, { replace: true })
-        setSubmitted(false)
-      } else {
-        toast.error(result.error || 'Invalid OTP. Please try again.')
-      }
+      const { token, user } = await authService.verifyOTP({ phone: `+91${phone}`, otp, intent, role: intent === 'partner' ? 'seller' : undefined })
+      const result = loginWithToken({ token, user })
+      toast.success('Login successful!')
+      const role = String(result.user?.role || '').toLowerCase()
+      const partnerDest = intent === 'partner' ? (role === 'admin' ? '/admin' : ((role === 'seller' || role === 'vendor') ? '/dashboard' : '/onboard')) : null
+      const defaultDest = role === 'admin' ? '/admin' : ((role === 'seller' || role === 'vendor') ? '/dashboard' : '/')
+      const to = location.state?.from || partnerDest || defaultDest
+      navigate(to, { replace: true })
+      setSubmitted(false)
     } catch (error) {
-      toast.error('Invalid OTP. Please try again.')
+      toast.error(error?.response?.data?.message || 'Invalid OTP. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -97,9 +98,11 @@ export default function MobileLogin() {
     
     setLoading(true)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const res = await authService.resendOTP({ phone: `+91${phone}`, otpId })
+      const ttl = Number(res?.ttlSeconds || 30)
+      if (res?.otpId) setOtpId(res.otpId)
       toast.success('OTP resent successfully')
-      setCountdown(30)
+      setCountdown(Math.max(10, Math.min(ttl, 60)))
     } catch (error) {
       toast.error('Failed to resend OTP')
     } finally {
@@ -129,7 +132,7 @@ export default function MobileLogin() {
             </svg>
           </div>
           <h2 id="mobile-login-title" className="text-3xl font-bold text-gray-900">
-            {step === 'phone' ? 'Enter Mobile Number' : 'Verify OTP'}
+            {step === 'phone' ? 'Login or Sign up with Mobile' : 'Verify OTP'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {step === 'phone' 
@@ -266,9 +269,9 @@ export default function MobileLogin() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Prefer email?{' '}
               <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Sign up
+                Register with email
               </Link>
             </p>
             <p className="mt-2 text-sm text-gray-600">

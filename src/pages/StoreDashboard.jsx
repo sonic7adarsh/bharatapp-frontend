@@ -3,6 +3,7 @@ import { SkeletonDashboard } from '../components/Skeletons'
 import { PageFade, PressScale } from '../motion/presets'
 import { Link } from 'react-router-dom'
 import { useAnnouncer } from '../context/AnnouncerContext'
+import sellerService from '../services/sellerService'
 
 export default function StoreDashboard() {
   const [loading, setLoading] = useState(true)
@@ -11,17 +12,33 @@ export default function StoreDashboard() {
   const { announce } = useAnnouncer()
 
   useEffect(() => {
-    // Simulate loading and read local orders (seeded in dev)
-    const t = setTimeout(() => {
-      let local = []
+    let active = true
+    setLoading(true)
+    ;(async () => {
+      try {
+        // Try seller orders (across all seller stores)
+        const remote = await sellerService.getOrders({})
+        if (!active) return
+        if (Array.isArray(remote) && remote.length >= 0) {
+          setOrders(remote)
+          setLoading(false)
+          return
+        }
+      } catch {}
+      // Fallback: local seeded orders from checkout flows
       try {
         const raw = localStorage.getItem('orders')
-        local = raw ? JSON.parse(raw) : []
-      } catch {}
-      setOrders(Array.isArray(local) ? local : [])
-      setLoading(false)
-    }, 400)
-    return () => clearTimeout(t)
+        const local = raw ? JSON.parse(raw) : []
+        if (!active) return
+        setOrders(Array.isArray(local) ? local : [])
+      } catch {
+        if (!active) return
+        setOrders([])
+      } finally {
+        if (active) setLoading(false)
+      }
+    })()
+    return () => { active = false }
   }, [])
   const metrics = useMemo(() => {
     const totalOrders = orders.length
@@ -99,12 +116,21 @@ export default function StoreDashboard() {
     <PageFade className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Store Dashboard</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <PressScale className="inline-block">
-            <Link to="/products/add" className="btn-primary">Add Product</Link>
+            <Link to="/products/add" className="btn-primary text-sm">Add Product</Link>
           </PressScale>
           <PressScale className="inline-block">
-            <Link to="/orders" className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50">View Orders</Link>
+            <Link to="/seller/products" className="px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 text-sm">Manage Products</Link>
+          </PressScale>
+          <PressScale className="inline-block">
+            <Link to="/orders" className="px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 text-sm">View Orders</Link>
+          </PressScale>
+          <PressScale className="inline-block">
+            <Link to="/seller/orders" className="px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 text-sm">Manage Seller Orders</Link>
+          </PressScale>
+          <PressScale className="inline-block">
+            <Link to="/seller/bookings" className="px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 text-sm">Manage Bookings</Link>
           </PressScale>
         </div>
       </div>
@@ -218,7 +244,7 @@ export default function StoreDashboard() {
               </thead>
               <tbody>
                 {metrics.topProducts.map(p => (
-                  <tr role="row" key={p.id} className="border-t">
+                  <tr role="row" key={p.id} className="border-t even:bg-gray-50">
                     <td role="cell" className="py-2 pr-4 font-medium">{p.name}</td>
                     <td role="cell" className="py-2 pr-4">{p.units}</td>
                     <td role="cell" className="py-2 pr-4">₹{p.revenue.toFixed(0)}</td>
@@ -235,6 +261,45 @@ export default function StoreDashboard() {
         <Link to="/products/add-open" className="link-brand">Public Add Product</Link>
         <span className="text-gray-400">•</span>
         <Link to="/stores" className="link-brand">Browse Stores</Link>
+      </div>
+
+      {/* Recent Orders */}
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold mb-3">Recent Orders</h2>
+        {orders.length === 0 ? (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">No recent orders.</div>
+        ) : (
+          <div className="bg-white rounded-lg shadow overflow-x-auto">
+            <table className="min-w-full divide-y">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ref</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Total</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {orders.slice(0, 10).map(o => {
+                  const date = o.createdAt || o.orderDate || o.date
+                  const dt = date ? new Date(date) : null
+                  return (
+                    <tr key={o.id || o.reference} className="even:bg-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm">{o.reference || o.id}</td>
+                      <td className="px-4 py-2 text-sm">{dt ? dt.toLocaleString() : 'Unknown'}</td>
+                      <td className="px-4 py-2 text-sm">₹{Number(o.total || o.totals?.payable || 0).toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm capitalize">{String(o.status || 'pending')}</td>
+                      <td className="px-4 py-2 text-right">
+                        <PressScale className="inline-block"><Link to={`/seller/orders/${o.id || o.reference}`} className="px-2 py-1 rounded border text-xs hover:bg-gray-50">View</Link></PressScale>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </PageFade>
   )

@@ -117,7 +117,16 @@ export function CartProvider({ children }) {
 export default function useCart() {
   const ctx = useContext(CartContext)
   if (!ctx) {
-    throw new Error('useCart must be used within a CartProvider')
+    // Provide a safe fallback to avoid crashes if provider isn't mounted yet
+    return {
+      items: [],
+      addItem: () => {},
+      removeItem: () => {},
+      updateItemQuantity: () => {},
+      clearCart: () => {},
+      itemsCount: 0,
+      totalPrice: 0,
+    }
   }
   return ctx
 }

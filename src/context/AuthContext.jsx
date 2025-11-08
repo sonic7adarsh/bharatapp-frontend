@@ -14,15 +14,24 @@ export function AuthProvider({ children }) {
     const initializeAuth = async () => {
       if (token) {
         localStorage.setItem('token', token)
-        try {
-          // Fetch user profile if token exists
-          const data = await authService.profile()
-          setUser(data)
-        } catch (error) {
-          console.error('Failed to fetch user profile:', error)
-          // If token is invalid, clear it
-          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            logout()
+        // Skip profile fetch when using mock tokens; trust local user
+        const isMock = typeof token === 'string' && token.startsWith('mock')
+        if (isMock) {
+          try {
+            const raw = localStorage.getItem('user')
+            if (raw) setUser(JSON.parse(raw))
+          } catch {}
+        } else {
+          try {
+            // Fetch user profile if token exists
+            const data = await authService.profile()
+            setUser(data)
+          } catch (error) {
+            console.error('Failed to fetch user profile:', error)
+            // If token is invalid, clear it
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+              logout()
+            }
           }
         }
       } else {
@@ -75,6 +84,17 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Directly set token and user after an external auth call
+  const loginWithToken = ({ token: newToken, user: userData }) => {
+    try {
+      if (newToken) localStorage.setItem('token', newToken)
+      if (userData) localStorage.setItem('user', JSON.stringify(userData))
+    } catch {}
+    setToken(newToken || null)
+    setUser(userData || null)
+    return { success: true, user: userData }
+  }
+
   // Logout function that clears token and user data
   const logout = () => {
     setToken(null)
@@ -108,6 +128,7 @@ export function AuthProvider({ children }) {
       user, 
       login, 
       loginWithPhone,
+      loginWithToken,
       logout, 
       register, 
       isAuthenticated,

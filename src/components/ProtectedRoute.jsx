@@ -21,7 +21,7 @@ export default function ProtectedRoute({ children }) {
 
   // If not authenticated, redirect to login page with return URL
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
+    return <Navigate to="/mobile-login" state={{ from: location.pathname + location.search }} replace />
   }
 
   // If authenticated, render the protected content

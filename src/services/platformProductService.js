@@ -1,4 +1,5 @@
 import axios from '../lib/axios'
+import { generateProducts } from '../lib/mock'
 
 function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
@@ -15,8 +16,18 @@ function fileToDataURL(file) {
 
 const platformProductService = {
   async getProducts(params = {}) {
-    const { data } = await axios.get('/api/platform/products', { params })
-    return data
+    try {
+      const { data } = await axios.get('/api/platform/products', { params })
+      return data
+    } catch (e) {
+      // Local fallback: read from localStorage, else generate mock
+      try {
+        const saved = localStorage.getItem('platform_products')
+        const products = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
+        if (products.length > 0) return products
+      } catch {}
+      return generateProducts(12)
+    }
   },
   async createProduct(payload) {
     try {

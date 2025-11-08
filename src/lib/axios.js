@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { API_BASE, TENANT_DOMAIN } from './env'
+import { API_BASE, TENANT_DOMAIN, DEBUG_API } from './env'
 import { toast } from 'react-toastify'
 
 const baseURL = import.meta.env?.DEV ? '' : API_BASE
@@ -9,13 +9,117 @@ const instance = axios.create({
   timeout: 10000
 })
 
+// Build a copy-pastable curl command that mirrors the outgoing request
+function buildCurlFromConfig(cfg) {
+  try {
+    const method = (cfg?.method || 'GET').toUpperCase()
+
+    // Build full backend URL using API_BASE (dev proxy targets backend)
+    const baseTarget = String(API_BASE || '').replace(/\/+$/, '')
+    const path = String(cfg?.url || '')
+    const fullUrl = baseTarget + (path.startsWith('/') ? path : '/' + path)
+
+    // Append query params, preserving any existing query string on url
+    let urlObj
+    try { urlObj = new URL(fullUrl) } catch { urlObj = null }
+    if (urlObj && cfg?.params && typeof cfg.params === 'object') {
+      const entries = Object.entries(cfg.params)
+      for (const [k, v] of entries) {
+        // Support arrays / multiple values
+        if (Array.isArray(v)) {
+          for (const vv of v) urlObj.searchParams.append(k, vv)
+        } else if (v !== undefined && v !== null) {
+          urlObj.searchParams.set(k, String(v))
+        }
+      }
+    }
+
+    // Prepare headers, masking sensitive Authorization token
+    const headers = []
+    const hdrs = cfg?.headers || {}
+    const maskAuth = (val) => {
+      if (typeof val !== 'string') return val
+      const m = val.match(/^Bearer\s+(.+)$/i)
+      if (!m) return val
+      const tok = m[1]
+      if (tok.length <= 12) return 'Bearer [REDACTED]'
+      return `Bearer ${tok.slice(0, 6)}…${tok.slice(-4)}`
+    }
+    for (const [k, v] of Object.entries(hdrs)) {
+      if (v == null) continue
+      const vv = k.toLowerCase() === 'authorization' ? maskAuth(v) : v
+      headers.push(`-H ${JSON.stringify(`${k}: ${vv}`)}`)
+    }
+
+    // Prepare body flags
+    const isForm = typeof FormData !== 'undefined' && cfg?.data instanceof FormData
+    let bodyPart = ''
+    if (cfg?.data != null) {
+      if (isForm) {
+        // Best-effort representation; binary parts are omitted
+        const fields = []
+        for (const [k, v] of cfg.data.entries()) {
+          const val = typeof v === 'string' ? v : '[binary]'
+          fields.push(`--form ${JSON.stringify(`${k}=${val}`)}`)
+        }
+        bodyPart = fields.join(' ')
+      } else if (typeof cfg.data === 'object') {
+        bodyPart = `--data-raw ${JSON.stringify(JSON.stringify(cfg.data))}`
+      } else {
+        bodyPart = `--data-raw ${JSON.stringify(String(cfg.data))}`
+      }
+    }
+
+    const methodPart = method ? `-X ${method}` : ''
+    const urlPart = JSON.stringify(urlObj ? urlObj.toString() : fullUrl)
+    const parts = ['curl', methodPart, urlPart, ...headers]
+    if (bodyPart) parts.push(bodyPart)
+    parts.push('--compressed')
+    return parts.filter(Boolean).join(' ')
+  } catch {
+    return null
+  }
+}
+
 // attach token if present
 instance.interceptors.request.use(cfg => {
+  // mark start time for duration tracking
+  try { cfg.metadata = { startTime: (typeof performance !== 'undefined' ? performance.now() : Date.now()) } } catch {}
+
   const token = localStorage.getItem('token')
   if (token) cfg.headers['Authorization'] = 'Bearer ' + token
   // Attach tenant domain header for BharatShop storefront APIs
   if (!cfg.headers['X-Tenant-Domain']) {
     cfg.headers['X-Tenant-Domain'] = TENANT_DOMAIN
+  }
+
+  // Structured request logging (gated by DEBUG_API)
+  if (DEBUG_API) {
+    try {
+      const method = (cfg?.method || '').toUpperCase()
+      const url = (cfg?.baseURL || '') + (cfg?.url || '')
+      const hasAuth = !!cfg?.headers?.['Authorization']
+      const isForm = typeof FormData !== 'undefined' && cfg?.data instanceof FormData
+      const dataPreview = (() => {
+        if (!cfg?.data) return undefined
+        if (isForm) {
+          const o = {}
+          for (const [k, v] of cfg.data.entries()) {
+            o[k] = typeof v === 'string' ? (v.length > 200 ? v.slice(0, 200) + '…' : v) : '[binary]'
+          }
+          return { formData: o }
+        }
+        return cfg.data
+      })()
+      const curl = buildCurlFromConfig(cfg)
+      console.groupCollapsed(`[API] → ${method} ${url}`)
+      console.log('tenant:', cfg.headers['X-Tenant-Domain'])
+      console.log('auth:', hasAuth ? '[attached]' : '[none]')
+      if (cfg.params) console.log('params:', cfg.params)
+      if (typeof dataPreview !== 'undefined') console.log('data:', dataPreview)
+      if (curl) console.log('curl:', curl)
+      console.groupEnd()
+    } catch {}
   }
   return cfg
 })
@@ -30,6 +134,19 @@ instance.interceptors.response.use(
       toast.success(successMessage || 'Action completed successfully')
       try { window.__announce?.(successMessage || 'Action completed successfully', 'polite') } catch {}
     }
+
+    // Structured response logging (gated by DEBUG_API)
+    if (DEBUG_API) {
+      try {
+        const start = response?.config?.metadata?.startTime || Date.now()
+        const end = (typeof performance !== 'undefined' ? performance.now() : Date.now())
+        const durationMs = Math.max(0, Math.round(end - start))
+        const url = (response?.config?.baseURL || '') + (response?.config?.url || '')
+        console.groupCollapsed(`[API] ✓ ${method} ${url} [${response.status}] ${durationMs}ms`)
+        console.log('data:', response?.data)
+        console.groupEnd()
+      } catch {}
+    }
     return response
   },
   (error) => {
@@ -40,8 +157,16 @@ instance.interceptors.response.use(
 
     // Auto-logout on unauthorized to prevent zombie sessions
     if (status === 401) {
-      try { window.__announce?.('Session expired. Please login again.', 'assertive') } catch {}
-      try { window.__logout?.() } catch {}
+      // Avoid auto-logout when using mock tokens in local/dev
+      let isMockToken = false
+      try {
+        const t = localStorage.getItem('token') || ''
+        isMockToken = typeof t === 'string' && t.startsWith('mock')
+      } catch {}
+      if (!isMockToken) {
+        try { window.__announce?.('Session expired. Please login again.', 'assertive') } catch {}
+        try { window.__logout?.() } catch {}
+      }
     }
 
     // Suppress noisy popups on 5xx or GET calls; only toast when explicitly requested
@@ -51,6 +176,20 @@ instance.interceptors.response.use(
     } else {
       // Log quietly to console to aid debugging without disrupting UX
       console.warn('[API]', method, error?.config?.url, status || '', message)
+    }
+
+    // Structured error logging (gated by DEBUG_API)
+    if (DEBUG_API) {
+      try {
+        const start = error?.config?.metadata?.startTime || Date.now()
+        const end = (typeof performance !== 'undefined' ? performance.now() : Date.now())
+        const durationMs = Math.max(0, Math.round(end - start))
+        const url = (error?.config?.baseURL || '') + (error?.config?.url || '')
+        console.groupCollapsed(`[API] ✗ ${method} ${url} [${status || 'ERR'}] ${durationMs}ms`)
+        console.log('error message:', message)
+        if (error?.response?.data) console.log('error data:', error.response.data)
+        console.groupEnd()
+      } catch {}
     }
     return Promise.reject(error)
   }

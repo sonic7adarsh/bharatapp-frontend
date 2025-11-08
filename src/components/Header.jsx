@@ -181,6 +181,7 @@ export default function Header() {
             <Link to="/" className="text-gray-700 hover:text-brand-accent font-medium transition-colors" aria-current={location.pathname === '/' ? 'page' : undefined}>Home</Link>
             <Link to="/stores" className="text-gray-700 hover:text-brand-accent font-medium transition-colors" aria-current={location.pathname.startsWith('/stores') ? 'page' : undefined}>Stores</Link>
             <Link to="/hotels" className="text-gray-700 hover:text-brand-accent font-medium transition-colors" aria-current={location.pathname.startsWith('/hotels') ? 'page' : undefined}>Hotels</Link>
+            <Link to="/partner" className="text-gray-700 hover:text-brand-accent font-medium transition-colors" aria-current={location.pathname.startsWith('/partner') ? 'page' : undefined}>Partner with us</Link>
             {/* Location indicator */}
             <div className="relative">
               <button
@@ -276,15 +277,62 @@ export default function Header() {
                         onKeyDown={onAccountMenuKeyDown}
                       >
                         {(isSeller || isAdmin) && (
-                          <Link
-                            to="/dashboard"
-                            role="menuitem"
-                            tabIndex={-1}
-                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                            onClick={() => closeAccountMenu(false)}
-                          >
-                            Dashboard
-                          </Link>
+                          <>
+                            <Link
+                              to="/dashboard"
+                              role="menuitem"
+                              tabIndex={-1}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                              onClick={() => closeAccountMenu(false)}
+                            >
+                              Dashboard
+                            </Link>
+                            <Link
+                              to="/products/add"
+                              role="menuitem"
+                              tabIndex={-1}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                              onClick={() => closeAccountMenu(false)}
+                            >
+                              Add Product
+                            </Link>
+                            <Link
+                              to="/seller/products"
+                              role="menuitem"
+                              tabIndex={-1}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                              onClick={() => closeAccountMenu(false)}
+                            >
+                              My Products
+                            </Link>
+                            <Link
+                              to="/rooms/add"
+                              role="menuitem"
+                              tabIndex={-1}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                              onClick={() => closeAccountMenu(false)}
+                            >
+                              Add Room
+                            </Link>
+                            <Link
+                              to="/seller/orders"
+                              role="menuitem"
+                              tabIndex={-1}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                              onClick={() => closeAccountMenu(false)}
+                            >
+                              Seller Orders
+                            </Link>
+                            <Link
+                              to="/seller/bookings"
+                              role="menuitem"
+                              tabIndex={-1}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                              onClick={() => closeAccountMenu(false)}
+                            >
+                              Seller Bookings
+                            </Link>
+                          </>
                         )}
                         <Link
                           to="/bookings"
@@ -318,8 +366,7 @@ export default function Header() {
                 </div>
               ) : (
                 <>
-                  <Link to="/login" className="px-3 lg:px-4 py-2 text-sm font-medium link-brand">Login</Link>
-                  <Link to="/register" className="px-3 lg:px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primaryDark transition-colors">Register</Link>
+              <Link to={'/mobile-login'} className="px-3 lg:px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primaryDark transition-colors">Login</Link>
                 </>
               )}
             </div>
@@ -333,11 +380,30 @@ export default function Header() {
               <Link to="/" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname === '/' ? 'page' : undefined}>
                 🏠 Home
               </Link>
+              {(isSeller || isAdmin) && (
+                <>
+                  <Link to="/dashboard" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/dashboard') ? 'page' : undefined}>
+                    📊 Dashboard
+                  </Link>
+                  <Link to="/products/add" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/products/add') ? 'page' : undefined}>
+                    ➕ Add Product
+                  </Link>
+                  <Link to="/seller/products" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/seller/products') ? 'page' : undefined}>
+                    📦 My Products
+                  </Link>
+                  <Link to="/rooms/add" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/rooms/add') ? 'page' : undefined}>
+                    🛏️ Add Room
+                  </Link>
+                </>
+              )}
               <Link to="/stores" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/stores') ? 'page' : undefined}>
                 🏪 Stores
               </Link>
               <Link to="/hotels" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/hotels') ? 'page' : undefined}>
                 🏨 Hotels
+              </Link>
+              <Link to="/partner" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/partner') ? 'page' : undefined}>
+                🤝 Partner with us
               </Link>
               
               {isAuthenticated ? (
@@ -349,9 +415,14 @@ export default function Header() {
                     📦 My Orders
                   </Link>
                   {(isSeller || isAdmin) && (
-                    <Link to="/dashboard" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/dashboard') ? 'page' : undefined}>
-                      📊 Dashboard
-                    </Link>
+                    <>
+                      <Link to="/seller/orders" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/seller/orders') ? 'page' : undefined}>
+                        🧾 Seller Orders
+                      </Link>
+                      <Link to="/seller/bookings" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/seller/bookings') ? 'page' : undefined}>
+                        🛎️ Seller Bookings
+                      </Link>
+                    </>
                   )}
                   <div className="border-t border-gray-200 pt-2 mt-2">
                     <div className="px-3 py-2 text-sm text-gray-500">
@@ -367,11 +438,8 @@ export default function Header() {
                 </>
               ) : (
                 <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
-                  <Link to="/login" className="block px-3 py-3 text-base font-medium link-brand hover:bg-brand-muted rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/login') ? 'page' : undefined}>
+                  <Link to={'/mobile-login'} className="block px-3 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primaryDark rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/mobile-login') ? 'page' : undefined}>
                     🔑 Login
-                  </Link>
-                  <Link to="/register" className="block px-3 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primaryDark rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/register') ? 'page' : undefined}>
-                    ✨ Register
                   </Link>
                 </div>
               )}

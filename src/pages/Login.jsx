@@ -40,12 +40,16 @@ export default function Login() {
     setIsLoading(true)
     
     try {
-      const result = await login(credentials)
+      const params = new URLSearchParams(location.search)
+      const intent = params.get('intent') || ''
+      const payload = intent === 'partner' ? { ...credentials, role: 'seller' } : credentials
+      const result = await login(payload)
       
       if (result.success) {
         const role = String(result.user?.role || '').toLowerCase()
-        const defaultDest = (role === 'seller' || role === 'vendor' || role === 'admin') ? '/dashboard' : '/'
-        const to = location.state?.from || defaultDest
+        const defaultDest = role === 'admin' ? '/admin' : ((role === 'seller' || role === 'vendor') ? '/dashboard' : '/')
+        const partnerDest = intent === 'partner' ? (role === 'admin' ? '/admin' : ((role === 'seller' || role === 'vendor') ? '/dashboard' : '/onboard')) : null
+        const to = location.state?.from || partnerDest || defaultDest
         navigate(to, { replace: true })
       } else {
         // Error toast is handled globally via axios interceptor

@@ -9,6 +9,7 @@ import useAuth from '../hooks/useAuth'
 export default function RoleProtectedRoute({ roles = [], children }) {
   const { isAuthenticated, loading, user } = useAuth()
   const location = useLocation()
+  const requiresSeller = Array.isArray(roles) && roles.map(r => String(r).toLowerCase()).includes('seller')
 
   if (loading) {
     return (
@@ -19,7 +20,8 @@ export default function RoleProtectedRoute({ roles = [], children }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
+    const redirectTo = '/mobile-login'
+    return <Navigate to={redirectTo} state={{ from: location.pathname + location.search }} replace />
   }
 
   const role = String(user?.role || '').toLowerCase()
@@ -27,8 +29,9 @@ export default function RoleProtectedRoute({ roles = [], children }) {
   const isAllowed = allowed.length === 0 ? true : allowed.includes(role)
 
   if (!isAllowed) {
-    // Redirect authenticated but unauthorized users to home
-    return <Navigate to="/" replace />
+    // Redirect authenticated but unauthorized users to partner onboarding when seller is required
+    const redirectTo = requiresSeller ? '/partner' : '/'
+    return <Navigate to={redirectTo} replace />
   }
 
   return children

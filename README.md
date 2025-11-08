@@ -15,7 +15,7 @@
 - The app ships with an in-memory sample dataset in `src/data/stores.js`.
 - To connect to your Spring Boot backend, create a `.env.local` file with:
   ```
-  VITE_API_BASE=http://localhost:8080
+ VITE_API_BASE=http://localhost:8081
   ```
 - The frontend expects these REST endpoints:
   - GET /api/stores

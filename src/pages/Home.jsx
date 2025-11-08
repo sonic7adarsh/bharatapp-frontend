@@ -15,7 +15,7 @@ export default function Home() {
   const [detectedCity, setDetectedCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
   const navigate = useNavigate()
-  const { isSeller, isAdmin } = useAuth()
+  const { isAuthenticated, isSeller, isAdmin } = useAuth()
 
   useEffect(() => {
     // try fetching from backend; fallback to local sample data
@@ -221,13 +221,25 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-orange-500 text-white p-6 md:p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h3 className="text-xl md:text-2xl font-bold">Own a local store?</h3>
-              <p className="mt-1 opacity-90">Join BharatApp and reach nearby customers with ease.</p>
+              {(isSeller || isAdmin) ? (
+                <h3 className="text-xl md:text-2xl font-bold">You're live on BharatApp! 🚀</h3>
+              ) : (
+                <>
+                  <h3 className="text-xl md:text-2xl font-bold">Own a local store?</h3>
+                  <p className="mt-1 opacity-90">Join BharatApp and reach nearby customers with ease.</p>
+                </>
+              )}
             </div>
-            {(isSeller || isAdmin) && (
+            {(isSeller || isAdmin) ? (
+              <div className="flex flex-wrap gap-3 items-center">
+                <Link to="/dashboard" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Go to Dashboard</Link>
+                <Link to="/products/add" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Add Product</Link>
+                <Link to="/rooms/add" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Add Room</Link>
+              </div>
+            ) : (
               <PressScale className="inline-block">
-                <Link to="/onboard" className="inline-flex items-center justify-center px-5 py-3 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">
-                  Register Your Store
+                <Link to={isAuthenticated ? "/onboard" : "/mobile-login?intent=partner"} className="inline-flex items-center justify-center px-5 py-3 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">
+                  {isAuthenticated ? 'Register Your Store' : 'Login to register your store'}
                 </Link>
               </PressScale>
             )}

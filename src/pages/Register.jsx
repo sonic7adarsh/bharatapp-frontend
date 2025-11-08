@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useMemo, useState } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import useAuth from '../hooks/useAuth'
 import { PageFade, PressScale } from '../motion/presets'
@@ -16,6 +16,8 @@ export default function Register() {
   const [formError, setFormError] = useState('')
   const { register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search])
 
   const handleChange = (e) => {
     const { id, value } = e.target
@@ -47,11 +49,17 @@ export default function Register() {
     setIsLoading(true)
     
     try {
-      const result = await register(userData)
+      const params = new URLSearchParams(location.search)
+      const intent = params.get('intent') || ''
+      const payload = intent === 'partner' ? { ...userData, role: 'seller' } : userData
+      const result = await register(payload)
       
       if (result.success) {
-        // Default new users to consumer experience
-        navigate('/', { replace: true })
+        const role = String(result.user?.role || 'customer').toLowerCase()
+        const intent = params.get('intent') || ''
+        const defaultDest = role === 'admin' ? '/admin' : ((role === 'seller' || role === 'vendor') ? '/dashboard' : '/')
+        const dest = intent === 'partner' ? '/onboard' : defaultDest
+        navigate(dest, { replace: true })
       } else {
         // Error toast is handled globally via axios interceptor
       }
@@ -122,6 +130,7 @@ export default function Register() {
               <p id="password-help" className="text-xs text-red-600 mt-1" aria-live="polite">Password must be at least 6 characters.</p>
             )}
           </div>
+          {/* No role selector: users register as customers by default. Sellers onboard separately. */}
           <PressScale className="block">
             <button
               type="submit"

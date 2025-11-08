@@ -8,12 +8,14 @@ import { PageFade, PressScale } from '../motion/presets'
 import { FREE_DELIVERY_THRESHOLD, DELIVERY_FEE_DEFAULT, SERVICEABLE_PINCODES } from '../lib/config'
 import { isNavKey, nextIndexForKey } from '../lib/keyboard'
 import { useAnnouncer } from '../context/AnnouncerContext'
+import useAuth from '../hooks/useAuth'
 
 export default function Checkout() {
   const { items, totalPrice, clearCart } = useCart()
   const location = useLocation()
   const navigate = useNavigate()
   const { announce } = useAnnouncer()
+  const { isAuthenticated } = useAuth()
   const [method, setMethod] = useState('cod')
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -314,6 +316,10 @@ export default function Checkout() {
   }
 
   const placeOrder = async () => {
+    if (!isAuthenticated) {
+      navigate('/mobile-login', { state: { from: location.pathname + location.search } })
+      return
+    }
     if (items.length === 0) return
     if (!isAddressValid()) {
       setError('Please fill a valid address, phone, pincode, and select a delivery slot.')
@@ -360,6 +366,10 @@ export default function Checkout() {
   })
 
   const payOnline = async () => {
+    if (!isAuthenticated) {
+      navigate('/mobile-login', { state: { from: location.pathname + location.search } })
+      return
+    }
     if (items.length === 0) return
     if (!isAddressValid()) {
       setError('Please fill a valid address, phone, pincode, and select a delivery slot before payment.')
@@ -749,9 +759,9 @@ export default function Checkout() {
               <PressScale className="inline-block">
                 <button
                   onClick={payOnline}
-                  disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
+                  disabled={loading || !isAuthenticated || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
                   className="btn-primary disabled:opacity-60"
-                  aria-disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
+                  aria-disabled={loading || !isAuthenticated || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
                   aria-label={`Pay Online, amount ₹${computePayable().toFixed(2)}`}
                 >
                   {loading ? 'Processing...' : 'Pay Online'}
@@ -761,9 +771,9 @@ export default function Checkout() {
               <PressScale className="inline-block">
                 <button
                   onClick={placeOrder}
-                  disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
+                  disabled={loading || !isAuthenticated || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
                   className="btn-primary disabled:opacity-60"
-                  aria-disabled={loading || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
+                  aria-disabled={loading || !isAuthenticated || !isAddressValid() || (requiresPrescription && prescriptions.length === 0)}
                   aria-label={`Place Order, amount ₹${computePayable().toFixed(2)}`}
                 >
                   {loading ? 'Placing Order...' : 'Place Order'}

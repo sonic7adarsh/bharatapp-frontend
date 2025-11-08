@@ -28,7 +28,8 @@ export default function Hotels() {
     setLoading(true)
     const handler = setTimeout(async () => {
       try {
-        const params = { category: 'Hotels' }
+        // Query backend using 'Hospitality' to match server category taxonomy
+        const params = { category: 'Hospitality' }
         if (search.trim()) params.search = search.trim()
         if (city && city !== 'All' && city !== '') params.city = city
         const res = await storeService.getStores(params, { params, signal: controller.signal })
