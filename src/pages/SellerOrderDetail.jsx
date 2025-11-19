@@ -41,17 +41,69 @@ export default function SellerOrderDetail() {
     return dt ? dt.toLocaleString() : 'Unknown date'
   })()
 
-  async function handleUpdateStatus(next) {
+  async function handleUpdateStatus(next, extra = {}) {
     if (!order?.id && !order?.reference) return
     try {
       const id = order.id || order.reference
-      const updated = await sellerService.updateOrderStatus(id, { status: next })
+      const payload = { status: next, ...extra }
+      const updated = await sellerService.updateOrderStatus(id, payload)
       setOrder(prev => ({ ...prev, ...(updated || {}), status: next }))
       toast.success('Order status updated')
     } catch (e) {
       console.error('Update status failed:', e)
     }
   }
+
+  // Countdown for seller response deadline
+  const [nowTick, setNowTick] = useState(Date.now())
+  useEffect(() => {
+    let timer
+    const statusPlaced = String(order?.status || 'placed').toLowerCase() === 'placed'
+    const deadline = order?.sellerResponseDeadline ? new Date(order.sellerResponseDeadline).getTime() : null
+    const accepted = order?.sellerAcceptedAt ? new Date(order.sellerAcceptedAt).getTime() : null
+    if (statusPlaced && deadline && !accepted) {
+      timer = setInterval(() => setNowTick(Date.now()), 1000)
+    }
+    return () => { if (timer) clearInterval(timer) }
+  }, [order?.status, order?.sellerResponseDeadline, order?.sellerAcceptedAt])
+
+  const remainingMs = (() => {
+    try {
+      const statusPlaced = String(order?.status || 'placed').toLowerCase() === 'placed'
+      const deadline = order?.sellerResponseDeadline ? new Date(order.sellerResponseDeadline).getTime() : null
+      const accepted = order?.sellerAcceptedAt ? new Date(order.sellerAcceptedAt).getTime() : null
+      if (!statusPlaced || !deadline || accepted) return 0
+      return Math.max(0, deadline - nowTick)
+    } catch { return 0 }
+  })()
+  const remainingText = (() => {
+    const s = Math.floor(remainingMs / 1000)
+    const m = Math.floor(s / 60)
+    const ss = s % 60
+    return `${m}m ${ss}s`
+  })()
+
+  // Auto-cancel on expiry: notify backend once when timer hits zero (if still placed)
+  const [autoCancelled, setAutoCancelled] = useState(false)
+  useEffect(() => {
+    const isPlaced = String(order?.status || 'placed').toLowerCase() === 'placed'
+    if (!order || !isPlaced) return
+    if (remainingMs === 0 && !autoCancelled) {
+      const id = order.id || order.reference
+      if (!id) return
+      ;(async () => {
+        try {
+          const updated = await sellerService.updateOrderStatus(id, { status: 'cancelled', cancellationReason: 'auto_cancelled_no_response', cancelledAt: new Date().toISOString() })
+          setOrder(prev => ({ ...prev, ...(updated || {}), status: 'cancelled' }))
+        } catch (e) {
+          // Silent fail; fallback logic will still reflect cancellation locally
+          console.warn('Auto-cancel patch failed:', e)
+        } finally {
+          setAutoCancelled(true)
+        }
+      })()
+    }
+  }, [remainingMs, order?.status, order?.id, order?.reference, autoCancelled])
 
   const [showRefund, setShowRefund] = useState(false)
   const [refundAmount, setRefundAmount] = useState('')
@@ -184,19 +236,61 @@ export default function SellerOrderDetail() {
           </div>
 
           {/* Seller actions */}
-          <div className="flex items-center justify-end gap-2">
-            <PressScale className="inline-block">
-              <button onClick={() => handleUpdateStatus('processing')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Mark Processing</button>
-            </PressScale>
-            <PressScale className="inline-block">
-              <button onClick={() => handleUpdateStatus('shipped')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Mark Shipped</button>
-            </PressScale>
-            <PressScale className="inline-block">
-              <button onClick={() => handleUpdateStatus('delivered')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Mark Delivered</button>
-            </PressScale>
-            <PressScale className="inline-block">
-              <button onClick={() => setShowRefund(v => !v)} className="px-3 py-2 rounded-md border hover:bg-gray-50">Request Refund</button>
-            </PressScale>
+          <div className="flex items-center justify-between gap-2">
+            {/* Acceptance window */}
+            {String(order.status || 'placed').toLowerCase() === 'placed' && (
+              <div className="text-sm text-gray-700">
+                Respond within <span className="font-medium">{remainingText}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              {String(order.status || 'placed').toLowerCase() === 'placed' ? (
+                <>
+                  <PressScale className="inline-block">
+                    <button
+                      onClick={() => handleUpdateStatus('processing', { sellerAcceptedAt: new Date().toISOString() })}
+                      disabled={remainingMs === 0}
+                      className="px-3 py-2 rounded-md border hover:bg-gray-50 disabled:opacity-60"
+                    >Accept</button>
+                  </PressScale>
+                  <PressScale className="inline-block">
+                    <button
+                      onClick={() => {
+                        const reason = window.prompt('Reason for rejection (optional):', 'Seller rejected') || 'seller_rejected'
+                        handleUpdateStatus('cancelled', { cancellationReason: reason, cancelledAt: new Date().toISOString() })
+                      }}
+                      className="px-3 py-2 rounded-md border hover:bg-gray-50"
+                    >Reject</button>
+                  </PressScale>
+                </>
+              ) : (
+                <>
+                  <PressScale className="inline-block">
+                    <button onClick={() => handleUpdateStatus('processing')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Mark Processing</button>
+                  </PressScale>
+                  <PressScale className="inline-block">
+                    <button onClick={() => handleUpdateStatus('shipped')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Mark Shipped</button>
+                  </PressScale>
+                  <PressScale className="inline-block">
+                    <button onClick={() => handleUpdateStatus('delivered')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Mark Delivered</button>
+                  </PressScale>
+                  {String(order.status).toLowerCase() !== 'cancelled' && String(order.status).toLowerCase() !== 'delivered' && (
+                    <PressScale className="inline-block">
+                      <button
+                        onClick={() => {
+                          const reason = window.prompt('Reason for cancellation (optional):', 'Seller cancelled after acceptance') || 'seller_cancelled_after_acceptance'
+                          handleUpdateStatus('cancelled', { cancellationReason: reason, cancelledAt: new Date().toISOString() })
+                        }}
+                        className="px-3 py-2 rounded-md border hover:bg-gray-50"
+                      >Cancel Order</button>
+                    </PressScale>
+                  )}
+                </>
+              )}
+              <PressScale className="inline-block">
+                <button onClick={() => setShowRefund(v => !v)} className="px-3 py-2 rounded-md border hover:bg-gray-50">Request Refund</button>
+              </PressScale>
+            </div>
           </div>
 
           {showRefund && (

@@ -11,6 +11,16 @@ const authService = {
   async sendOTP({ phone, channel = 'sms' }) {
     try {
       const { data } = await axios.post('/api/storefront/auth/otp/send', { phone, channel })
+      // Persist session on success as well (align resend to use same otpId)
+      try {
+        const ttlSeconds = Number(data?.ttlSeconds || 300)
+        const expiresAt = Date.now() + ttlSeconds * 1000
+        const otpId = data?.otpId
+        if (otpId) {
+          const session = { otpId, phone, ttlSeconds, expiresAt }
+          localStorage.setItem('otpSession', JSON.stringify(session))
+        }
+      } catch {}
       return data
     } catch (e) {
       // Fallback on network/connection errors or when dev toggle allows
@@ -66,6 +76,14 @@ const authService = {
   async resendOTP({ phone, otpId }) {
     try {
       const { data } = await axios.post('/api/storefront/auth/otp/resend', { phone, otpId })
+      // Update session with new otpId/ttl on success
+      try {
+        const ttlSeconds = Number(data?.ttlSeconds || 300)
+        const expiresAt = Date.now() + ttlSeconds * 1000
+        const nextOtpId = data?.otpId || otpId
+        const session = { otpId: nextOtpId, phone, ttlSeconds, expiresAt }
+        localStorage.setItem('otpSession', JSON.stringify(session))
+      } catch {}
       return data
     } catch (e) {
       // Fallback on network/connection errors or when dev toggle allows

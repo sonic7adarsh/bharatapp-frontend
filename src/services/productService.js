@@ -1,13 +1,13 @@
 import axios from '../lib/axios'
-import { generateProducts, generateCategories } from '../lib/mock'
 
 const productService = {
   async getProducts(params = {}) {
     try {
       const { data } = await axios.get('/api/storefront/products', { params })
-      return data
+      return Array.isArray(data) ? data : []
     } catch (e) {
-      return generateProducts(8)
+      console.error('getProducts failed:', e)
+      return []
     }
   },
   async getProductById(id) {
@@ -15,8 +15,8 @@ const productService = {
       const { data } = await axios.get(`/api/storefront/products/${id}`)
       return data
     } catch (e) {
-      const products = generateProducts(10)
-      return products.find(p => p.id === id) || products[0]
+      console.error('getProductById failed:', e)
+      return null
     }
   },
   async getCategories() {
@@ -39,12 +39,7 @@ const productService = {
       const legacy = normalize(data)
       if (legacy.length) return legacy
     } catch {}
-    try {
-      const { data } = await axios.get('/categories.json')
-      const local = normalize(data)
-      if (local.length) return local
-    } catch {}
-    return normalize(generateCategories())
+    return []
   }
 }
 

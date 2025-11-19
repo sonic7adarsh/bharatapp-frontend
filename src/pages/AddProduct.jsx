@@ -7,7 +7,7 @@ import { useLocation, Link } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 
 export default function AddProduct() {
-  const { isSeller, isAdmin } = useAuth()
+  const { isSeller, isAdmin, user } = useAuth()
   const location = useLocation()
   const params = useMemo(() => new URLSearchParams(location.search), [location.search])
   const [storeId, setStoreId] = useState(params.get('storeId') || '')
@@ -72,6 +72,8 @@ export default function AddProduct() {
     reader.readAsDataURL(file)
   }
 
+  // Backend scopes stores by JWT; no client-side owner phone filtering needed.
+
   useEffect(() => {
     return () => {
       setImagePreview('')
@@ -108,11 +110,12 @@ export default function AddProduct() {
       try {
         const list = await sellerService.getSellerStores()
         if (!active) return
-        setStores(Array.isArray(list) ? list : [])
+        const arr = Array.isArray(list) ? list : []
+        setStores(arr)
         // If no storeId in URL, preselect first store
-        if (!storeId && Array.isArray(list) && list.length > 0) {
-          const first = list[0]
-          if (first?.id) setStoreId(String(first.id))
+        if (!storeId && arr.length > 0) {
+          const first = arr[0]
+          if (first?.id || first?._id) setStoreId(String(first.id || first._id))
         }
       } catch (err) {
         // Error toast handled globally

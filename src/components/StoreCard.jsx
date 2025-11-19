@@ -13,6 +13,7 @@ export default function StoreCard({ store }) {
     return `${base}-${base + 10}`
   })()
   const locationLabel = store.area || store.location || 'Nearby'
+  const storeClosed = Boolean(store?.orderingDisabled) || String(store?.status || '').toLowerCase() === 'closed' || Boolean(store?.closed)
   return (
     <HoverLiftCard
       className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-elev-2 transition-shadow duration-300 flex flex-col h-full"
@@ -52,6 +53,11 @@ export default function StoreCard({ store }) {
               Delivers to {city} · ~{etaRange}m
             </span>
           )}
+          {storeClosed && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-red-100 text-red-700" aria-label="Store is closed">
+              Closed
+            </span>
+          )}
         </div>
 
         <div className="mt-3 space-y-2 min-h-[56px]">
@@ -67,19 +73,26 @@ export default function StoreCard({ store }) {
         <div className="mt-2 h-px bg-gray-100" />
         <div className="mt-3 flex items-center justify-between gap-3">
           <span className="text-sm text-gray-600">Explore products and offers</span>
-          <PressScale className="inline-block">
-            <Link
-              to={`/store/${store.id}`}
-              className="inline-flex items-center gap-1 text-brand-accent text-sm hover:underline"
-              aria-label={`View store ${store.name}`}
-              onMouseEnter={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
-              onFocus={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
-              onTouchStart={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
-            >
-              <span>View Store</span>
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </Link>
-          </PressScale>
+          {storeClosed ? (
+            <span className="inline-flex items-center gap-1 text-gray-400 text-sm" aria-disabled="true">
+              <span>Closed</span>
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 5l7 7-7 7M5 12h14" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </span>
+          ) : (
+            <PressScale className="inline-block">
+              <Link
+                to={`/store/${store.id}`}
+                className="inline-flex items-center gap-1 text-brand-accent text-sm hover:underline"
+                aria-label={`View store ${store.name}`}
+                onMouseEnter={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
+                onFocus={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
+                onTouchStart={async () => { import('../pages/StoreDetail'); try { const svc = (await import('../services/storeService')).default; svc.prefetchStoreDetail(store.id) } catch {} }}
+              >
+                <span>View Store</span>
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </Link>
+            </PressScale>
+          )}
         </div>
       </div>
     </HoverLiftCard>

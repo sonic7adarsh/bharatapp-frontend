@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { STORES } from '../data/stores'
 import { SkeletonStoreCard } from '../components/Skeletons'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
 import { PageFade, HoverLiftCard, PressScale, DrawerRight } from '../motion/presets'
 import { useAnnouncer } from '../context/AnnouncerContext'
 import useAuth from '../hooks/useAuth'
+import productService from '../services/productService'
 
 export default function Hotels() {
   const [stores, setStores] = useState([])
@@ -15,6 +15,8 @@ export default function Hotels() {
   const [search, setSearch] = useState('')
   const [city, setCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
+  const [coords, setCoords] = useState(null)
+  const [detectingCoords, setDetectingCoords] = useState(false)
   const [sortBy, setSortBy] = useState('')
   const [minRating, setMinRating] = useState(0)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -28,10 +30,15 @@ export default function Hotels() {
     setLoading(true)
     const handler = setTimeout(async () => {
       try {
-        // Query backend using 'Hospitality' to match server category taxonomy
-        const params = { category: 'Hospitality' }
+        // Hotels page should always show only Hotels
+        const params = { category: 'Hotel' }
         if (search.trim()) params.search = search.trim()
         if (city && city !== 'All' && city !== '') params.city = city
+        if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+          params.lat = coords.lat
+          params.lon = coords.lon
+          params.lng = coords.lng
+        }
         const res = await storeService.getStores(params, { params, signal: controller.signal })
         if (!active) return
         setStores(Array.isArray(res) ? res : [])
@@ -40,27 +47,21 @@ export default function Hotels() {
         if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
         console.error('Failed to fetch hotels:', err)
         if (!active) return
-        const q = (search || '').toLowerCase()
-        const filtered = STORES.filter(s => isHospitalityCat(s.category || s.type)).filter(s => {
-          const matchName = s.name.toLowerCase().includes(q)
-          const sourceCity = (s.location || s.area || '').toLowerCase()
-          const matchCity = city && city !== 'All' && city !== '' ? sourceCity.includes(city.toLowerCase()) : true
-          return matchName && matchCity
-        })
-        setStores(filtered)
-        setError('')
+        setError('Failed to load hotels.')
+        setStores([])
       } finally {
         if (active) setLoading(false)
       }
     }, 400)
 
     return () => { active = false; controller.abort(); clearTimeout(handler) }
-  }, [search, city])
+  }, [search, city, coords?.lat, coords?.lon])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const initialSearch = params.get('search') || ''
     const initialCity = params.get('city') || ''
+    // category is fixed to 'Hotel' on this page; ignore any incoming value
     if (initialSearch) setSearch(initialSearch)
     if (initialCity) setCity(initialCity)
   }, [location.search])
@@ -88,10 +89,39 @@ export default function Hotels() {
     return () => { active = false }
   }, [city])
 
+  // Try auto-detect coords for nearby hotel search
+  useEffect(() => {
+    let active = true
+    async function run() {
+      try {
+        if (coords) return
+        setDetectingCoords(true)
+        let cached = null
+        try { cached = JSON.parse(localStorage.getItem('user_coords') || 'null') } catch {}
+        if (cached && typeof cached.lat === 'number' && typeof cached.lon === 'number') {
+          setCoords(cached)
+          return
+        }
+        const detected = await locationService.detectCoordsViaGeolocation()
+        if (!active) return
+        if (detected) {
+          setCoords(detected)
+          try { localStorage.setItem('user_coords', JSON.stringify(detected)) } catch {}
+        }
+      } finally {
+        if (active) setDetectingCoords(false)
+      }
+    }
+    run()
+    return () => { active = false }
+  }, [coords])
+
   const isHospitalityCat = (c = '') => {
     const x = String(c).toLowerCase()
     return x.includes('hotel') || x.includes('hospitality') || x.includes('hospital')
   }
+
+  // Category selection removed for Hotels-only view
 
   const sortedStores = useMemo(() => {
     const list = [...stores].filter(s => !minRating || Number(s.rating || 0) >= Number(minRating))
@@ -119,6 +149,9 @@ export default function Hotels() {
       <section role="region" aria-labelledby="hotels-filters-heading" className="sticky top-16 z-10 bg-white/90 backdrop-blur rounded-xl shadow-sm p-3 mb-4">
         <h2 id="hotels-filters-heading" className="sr-only">Hotel Filters</h2>
         <div className="flex flex-col gap-2">
+          {(detectingCity || detectingCoords) && (
+            <div className="text-xs text-gray-600">Detecting your location6hellip;</div>
+          )}
           {/* Row 1: Search + Sort + CTA */}
           <div className="flex items-center gap-2 flex-wrap">
             <label htmlFor="hotels-search" className="sr-only">Search hotels</label>
@@ -130,6 +163,7 @@ export default function Hotels() {
               placeholder="Search hotels"
               className="border rounded-full px-4 py-2 text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-brand-primary"
             />
+            {/* Category dropdown removed: we only show Hotels */}
             {/* Inline sort moved into drawer for consistency with Stores */}
             <div role="group" aria-label="Sort hotels" className="hidden rounded-full border overflow-hidden">
               <button
@@ -153,15 +187,15 @@ export default function Hotels() {
             </div>
             {/* Filters toggle (mobile + desktop) */}
             <PressScale className="inline-block ml-auto">
-              <button
-                type="button"
-                className="px-3 py-2 rounded-full border text-sm bg-white hover:bg-gray-50"
-                aria-controls="hotels-filters-drawer"
-                aria-expanded={filtersOpen ? 'true' : 'false'}
-                onClick={() => setFiltersOpen(true)}
-              >Filters</button>
-            </PressScale>
-            {(isSeller || isAdmin) && (
+            <button
+              type="button"
+              className="px-3 py-2 rounded-full border text-sm bg-white hover:bg-gray-50"
+              aria-controls="hotels-filters-drawer"
+              aria-expanded={filtersOpen ? 'true' : 'false'}
+              onClick={() => setFiltersOpen(true)}
+            >Filters</button>
+          </PressScale>
+            {(!isSeller && !isAdmin) && (
               <PressScale className="inline-block ml-auto">
                 <Link to="/onboard" className="inline-flex items-center justify-center px-3 py-2 rounded-full border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm">List Your Hotel</Link>
               </PressScale>
@@ -185,7 +219,7 @@ export default function Hotels() {
             </div>
             <button
               type="button"
-              onClick={() => { setSearch(''); setMinRating(0); setSortBy(''); announce('Filters reset.', 'polite') }}
+              onClick={() => { setSearch(''); setMinRating(0); setSortBy(''); setCity(''); announce('Filters reset.', 'polite') }}
               className="ml-auto px-3 py-1.5 rounded-full text-sm bg-gray-100 hover:bg-gray-200"
               aria-label="Reset filters"
             >Reset</button>
@@ -237,6 +271,7 @@ export default function Hotels() {
                 >Name A–Z</button>
               </div>
             </div>
+            {/* Category filter removed in drawer for Hotels-only view */}
             <div>
               <label className="text-sm font-medium">Minimum Rating</label>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -276,7 +311,7 @@ export default function Hotels() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedStores.map(store => (
             <Link
-              to={`/store/${store.id}`}
+              to={`/hotels/${store.id}`}
               key={store.id}
               className="block"
               onMouseEnter={() => { import('../pages/StoreDetail'); import('../pages/RoomBooking'); storeService.prefetchStoreDetail(store.id) }}

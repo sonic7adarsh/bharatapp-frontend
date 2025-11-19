@@ -122,6 +122,25 @@ export default function MobileLogin() {
     return digits
   }
 
+  // Initialize from persisted OTP session if still valid
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('otpSession')
+      if (!raw) return
+      const session = JSON.parse(raw)
+      if (session && session.expiresAt > Date.now()) {
+        setOtpId(String(session.otpId || ''))
+        setPhone(formatPhone(String(session.phone || '')))
+        setStep('otp')
+        const left = Math.max(0, Math.floor((Number(session.expiresAt) - Date.now()) / 1000))
+        const next = Math.max(10, Math.min(60, left))
+        setCountdown(next)
+      } else {
+        localStorage.removeItem('otpSession')
+      }
+    } catch {}
+  }, [])
+
   return (
     <PageFade className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" aria-labelledby="mobile-login-title">
       <div className="max-w-md w-full space-y-8">

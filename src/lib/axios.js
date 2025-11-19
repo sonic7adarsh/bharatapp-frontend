@@ -5,7 +5,7 @@ import { toast } from 'react-toastify'
 const baseURL = import.meta.env?.DEV ? '' : API_BASE
 const instance = axios.create({
   baseURL,
-  headers: { 'Content-Type': 'application/json' },
+  // Do not set a global Content-Type; set per-request to allow FormData boundaries
   timeout: 10000
 })
 
@@ -87,11 +87,39 @@ instance.interceptors.request.use(cfg => {
   try { cfg.metadata = { startTime: (typeof performance !== 'undefined' ? performance.now() : Date.now()) } } catch {}
 
   const token = localStorage.getItem('token')
-  if (token) cfg.headers['Authorization'] = 'Bearer ' + token
+  // Avoid attaching Authorization ONLY for OTP endpoints (send/verify/resend)
+  const url = String(cfg?.url || '')
+  const isOtpEndpoint = /^\/?api\/storefront\/auth\/otp\//.test(url)
+  if (token && !isOtpEndpoint) cfg.headers['Authorization'] = 'Bearer ' + token
   // Attach tenant domain header for BharatShop storefront APIs
   if (!cfg.headers['X-Tenant-Domain']) {
     cfg.headers['X-Tenant-Domain'] = TENANT_DOMAIN
   }
+
+  // Attach correlation id for tracing
+  try {
+    const rid = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : ('rid_' + Math.random().toString(16).slice(2) + Date.now())
+    if (!cfg.headers['X-Request-Id']) cfg.headers['X-Request-Id'] = rid
+    // keep on config for response log correlation
+    cfg.metadata = { ...(cfg.metadata || {}), requestId: cfg.headers['X-Request-Id'] }
+  } catch {}
+
+  // If sending FormData, let the browser set multipart boundaries
+  try {
+    const isForm = typeof FormData !== 'undefined' && cfg?.data instanceof FormData
+    if (isForm) {
+      if (cfg.headers) {
+        delete cfg.headers['Content-Type']
+      }
+    } else {
+      // Default to JSON for non-FormData requests if not explicitly set
+      if (cfg.headers && !cfg.headers['Content-Type']) {
+        cfg.headers['Content-Type'] = 'application/json'
+      }
+    }
+  } catch {}
 
   // Structured request logging (gated by DEBUG_API)
   if (DEBUG_API) {
@@ -113,6 +141,7 @@ instance.interceptors.request.use(cfg => {
       })()
       const curl = buildCurlFromConfig(cfg)
       console.groupCollapsed(`[API] → ${method} ${url}`)
+      if (cfg.metadata?.requestId) console.log('reqId:', cfg.metadata.requestId)
       console.log('tenant:', cfg.headers['X-Tenant-Domain'])
       console.log('auth:', hasAuth ? '[attached]' : '[none]')
       if (cfg.params) console.log('params:', cfg.params)
@@ -142,7 +171,9 @@ instance.interceptors.response.use(
         const end = (typeof performance !== 'undefined' ? performance.now() : Date.now())
         const durationMs = Math.max(0, Math.round(end - start))
         const url = (response?.config?.baseURL || '') + (response?.config?.url || '')
+        const respRid = response?.headers?.['x-request-id'] || response?.headers?.['X-Request-Id']
         console.groupCollapsed(`[API] ✓ ${method} ${url} [${response.status}] ${durationMs}ms`)
+        if (response?.config?.metadata?.requestId || respRid) console.log('reqId:', response?.config?.metadata?.requestId || respRid)
         console.log('data:', response?.data)
         console.groupEnd()
       } catch {}
@@ -185,7 +216,9 @@ instance.interceptors.response.use(
         const end = (typeof performance !== 'undefined' ? performance.now() : Date.now())
         const durationMs = Math.max(0, Math.round(end - start))
         const url = (error?.config?.baseURL || '') + (error?.config?.url || '')
+        const respRid = error?.response?.headers?.['x-request-id'] || error?.response?.headers?.['X-Request-Id']
         console.groupCollapsed(`[API] ✗ ${method} ${url} [${status || 'ERR'}] ${durationMs}ms`)
+        if (error?.config?.metadata?.requestId || respRid) console.log('reqId:', error?.config?.metadata?.requestId || respRid)
         console.log('error message:', message)
         if (error?.response?.data) console.log('error data:', error.response.data)
         console.groupEnd()

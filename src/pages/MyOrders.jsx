@@ -10,6 +10,9 @@ import { useAnnouncer } from '../context/AnnouncerContext'
 export default function MyOrders() {
   const { user, loading: authLoading } = useAuth()
   const [orders, setOrders] = useState([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const { addItem, clearCart } = useCart()
@@ -21,8 +24,10 @@ export default function MyOrders() {
       try {
         setLoading(true)
         announce('Loading orders…', 'polite')
-        const data = await orderService.getOrders()
-        const raw = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
+        const data = await orderService.getOrders({ page, pageSize })
+        const raw = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : Array.isArray(data?.items) ? data.items : []
+        const totalCount = typeof data?.total === 'number' ? data.total : (Array.isArray(data) ? data.length : (Array.isArray(data?.orders) ? data.orders.length : (Array.isArray(data?.items) ? data.items.length : 0)))
+        setTotal(totalCount)
         const onlyOrders = raw.filter(o => String(o?.type || 'order') !== 'room_booking')
         setOrders(onlyOrders)
         setError('')
@@ -37,7 +42,7 @@ export default function MyOrders() {
       }
     }
     fetchOrders()
-  }, [user?.id])
+  }, [user?.id, page, pageSize])
 
   if (authLoading || loading) {
     return (
@@ -74,6 +79,7 @@ export default function MyOrders() {
           </div>
         </section>
       ) : (
+        <>
         <ul role="list" aria-labelledby="orders-heading" className="space-y-4">
           {orders.map((order, idx) => {
             const dateStr = (() => {
@@ -151,11 +157,51 @@ export default function MyOrders() {
                     </PressScale>
                   </div>
                 </div>
+                {status === 'cancelled' && order.cancellationReason && (
+                  <div className="mt-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md">
+                    Cancelled: {String(order.cancellationReason)}
+                  </div>
+                )}
                 <span id={descId} className="sr-only">Placed on {dateStr}. {order.total != null ? `Total ₹${Number(order.total).toFixed(2)}.` : ''} Status {status}. {isDelivered ? 'Delivered.' : status === 'cancelled' ? 'Cancelled.' : `Estimated arrival ${etaRange}.`}</span>
               </li>
             )
           })}
         </ul>
+        <div className="mt-6 flex items-center justify-between">
+          <div className="text-sm text-gray-600">Page {page} of {Math.max(1, Math.ceil(total / pageSize))}</div>
+          <div className="flex items-center gap-2">
+            <PressScale className="inline-block">
+              <button
+                className="px-3 py-2 rounded-md border hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                aria-label="Previous page"
+              >Previous</button>
+            </PressScale>
+            <PressScale className="inline-block">
+              <button
+                className="px-3 py-2 rounded-md border hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= Math.max(1, Math.ceil(total / pageSize))}
+                aria-label="Next page"
+              >Next</button>
+            </PressScale>
+            <label className="ml-2 text-sm text-gray-600">
+              <span className="sr-only">Items per page</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+                className="ml-2 border rounded px-2 py-1 text-sm"
+                aria-label="Items per page"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        </>
       )}
     </PageFade>
   )

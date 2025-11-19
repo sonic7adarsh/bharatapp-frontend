@@ -41,6 +41,9 @@ export function AnnouncerProvider({ children }) {
 
 export function useAnnouncer() {
   const ctx = useContext(AnnouncerContext)
-  if (!ctx) throw new Error('useAnnouncer must be used within AnnouncerProvider')
+  if (!ctx) {
+    // Provide a safe no-op fallback to avoid crashes if provider isn't mounted yet
+    return { announce: () => {} }
+  }
   return ctx
 }

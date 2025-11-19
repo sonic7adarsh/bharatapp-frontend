@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import sellerService from "../services/sellerService";
+import { useI18n } from "../context/I18nContext";
 import DateRangePicker from "../components/DateRangePicker";
 
 export default function SellerBookings() {
+  const { t } = useI18n() || { t: (k, f) => f }
   const location = useLocation();
   const navigate = useNavigate();
   const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -148,9 +150,9 @@ export default function SellerBookings() {
           </button>
           <Link
             to="/dashboard"
-            className="text-blue-600 hover:underline"
+            className="btn-primary text-sm"
           >
-            Back to Dashboard
+            {t('nav.back_to_dashboard', 'Back to Dashboard')}
           </Link>
         </div>
       </div>

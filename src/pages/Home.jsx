@@ -1,31 +1,41 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import StoreCard from '../components/StoreCard'
-import { STORES } from '../data/stores'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
 import { PageFade, PressScale } from '../motion/presets'
+import sellerService from '../services/sellerService'
 import useAuth from '../hooks/useAuth'
 
 export default function Home() {
-  const [stores, setStores] = useState(STORES)
+  const [stores, setStores] = useState([])
   const [nonHospStores, setNonHospStores] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [detectedCity, setDetectedCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
+  const [allowRooms, setAllowRooms] = useState(false)
   const navigate = useNavigate()
   const { isAuthenticated, isSeller, isAdmin } = useAuth()
 
   useEffect(() => {
     // try fetching from backend; fallback to local sample data
+    let active = true
     const controller = new AbortController()
     setLoading(true)
-    storeService.getStores(undefined, { signal: controller.signal })
-      .then(res => { if (res?.length) setStores(res) })
-      .catch(err => { if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return })
-      .finally(() => setLoading(false))
-    return () => { controller.abort() }
+    ;(async () => {
+      try {
+        const res = await storeService.getStores(undefined, { signal: controller.signal })
+        if (!active) return
+        setStores(Array.isArray(res) ? res : [])
+      } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
+        // Quietly ignore other errors to keep Home resilient; Logs handled by axios.
+      } finally {
+        if (active) setLoading(false)
+      }
+    })()
+    return () => { active = false; controller.abort() }
   }, [])
 
   // Exclude hospitality from Home featured list
@@ -37,6 +47,29 @@ export default function Home() {
     const filtered = (Array.isArray(stores) ? stores : []).filter(s => !isHospitalityCat(s.category || s.type))
     setNonHospStores(filtered)
   }, [stores])
+
+  // Determine hospitality capability for seller/admin to show Add Room CTA conditionally
+  useEffect(() => {
+    let cancelled = false
+    async function loadSellerStores() {
+      if (!(isSeller || isAdmin)) { setAllowRooms(false); return }
+      try {
+        const list = await sellerService.getSellerStores()
+        if (cancelled) return
+        const isHospitality = (Array.isArray(list) ? list : []).some(s => {
+          const cat = String(s?.category || s?.type || '').toLowerCase()
+          return cat.includes('hotel') || cat.includes('hospitality') || cat.includes('residency')
+        })
+        const hasBookingsCapability = (Array.isArray(list) ? list : []).some(s => s?.capabilities?.bookings === true)
+        setAllowRooms(isHospitality || hasBookingsCapability)
+      } catch (e) {
+        if (cancelled) return
+        setAllowRooms(false)
+      }
+    }
+    loadSellerStores()
+    return () => { cancelled = true }
+  }, [isSeller, isAdmin])
 
   // Detect city but do NOT auto-redirect; show CTA instead
   useEffect(() => {
@@ -234,7 +267,9 @@ export default function Home() {
               <div className="flex flex-wrap gap-3 items-center">
                 <Link to="/dashboard" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Go to Dashboard</Link>
                 <Link to="/products/add" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Add Product</Link>
-                <Link to="/rooms/add" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Add Room</Link>
+                {allowRooms && (
+                  <Link to="/rooms/add" className="inline-flex items-center justify-center px-4 py-2 bg-white text-fuchsia-700 rounded-lg hover:bg-fuchsia-50 font-medium">Add Room</Link>
+                )}
               </div>
             ) : (
               <PressScale className="inline-block">

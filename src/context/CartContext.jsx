@@ -36,6 +36,8 @@ export function CartProvider({ children }) {
             name: i.name,
             price: Number(i.price) || 0,
             quantity: Number(i.quantity) || 1,
+            requiresPrescription: !!i.requiresPrescription,
+            storeId: i.storeId || i.store?.id || i.store || null,
           })))
         }
       } catch (e) {
@@ -52,10 +54,10 @@ export function CartProvider({ children }) {
       if (existing) {
         return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + qty } : i)
       }
-      return [...prev, { id: product.id, name: product.name, price: product.price || 0, quantity: qty, requiresPrescription: !!product.requiresPrescription }]
+      return [...prev, { id: product.id, name: product.name, price: product.price || 0, quantity: qty, requiresPrescription: !!product.requiresPrescription, storeId: product.storeId || null }]
     })
     try {
-      await cartService.addToCart({ id: product.id, name: product.name, price: product.price || 0, quantity: qty, requiresPrescription: !!product.requiresPrescription })
+      await cartService.addToCart({ id: product.id, name: product.name, price: product.price || 0, quantity: qty, requiresPrescription: !!product.requiresPrescription, storeId: product.storeId || null })
     } catch (e) {
       // ignore backend errors for add
     }
@@ -79,17 +81,17 @@ export function CartProvider({ children }) {
       if (qty <= 0) {
         await cartService.removeFromCart(id)
       } else {
-        const item = items.find(i => i.id === id)
-        if (item) {
-          await cartService.addToCart({ id, name: item.name, price: item.price, quantity: qty })
-        }
+        await cartService.updateItemQuantity(id, qty)
       }
     } catch (e) {
       // ignore backend errors for update
     }
   }
 
-  const clearCart = () => setItems([])
+  const clearCart = async () => {
+    setItems([])
+    try { await cartService.clearCart() } catch {}
+  }
 
   const totals = useMemo(() => {
     const itemsCount = items.reduce((sum, i) => sum + i.quantity, 0)

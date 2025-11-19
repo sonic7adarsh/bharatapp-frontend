@@ -4,6 +4,7 @@ import useCart from '../context/CartContext'
 import { PageFade, PressScale } from '../motion/presets'
 import { isNavKey, nextIndexForKey } from '../lib/keyboard'
 import { useAnnouncer } from '../context/AnnouncerContext'
+import eventService from '../services/eventService'
 
 export default function CheckoutOptions() {
   const navigate = useNavigate()
@@ -33,6 +34,7 @@ export default function CheckoutOptions() {
   const continueCheckout = () => {
     // Persist choice lightly and navigate with query param
     try { localStorage.setItem('checkout_method', method) } catch {}
+    try { eventService.track('payment_method_selected', { method }) } catch {}
     announce(method === 'cod' ? 'Payment method: Cash on Delivery selected. Continuing to checkout.' : 'Payment method: Online payment selected. Continuing to checkout.', 'polite')
     const qs = new URLSearchParams({ method }).toString()
     const next = promo ? `${qs}&promo=${encodeURIComponent(promo)}` : qs
@@ -54,7 +56,7 @@ export default function CheckoutOptions() {
         >
           <button
             type="button"
-            onClick={() => { setMethod('cod'); announce('Payment method: Cash on Delivery selected.', 'polite') }}
+            onClick={() => { setMethod('cod'); try { eventService.track('payment_method_selected', { method: 'cod' }) } catch {}; announce('Payment method: Cash on Delivery selected.', 'polite') }}
             aria-label="Cash on Delivery"
             className={`bg-white rounded-lg shadow-sm p-6 flex items-center justify-center hover:ring-2 hover:ring-brand-accentLight transition ${method === 'cod' ? 'ring-2 ring-brand-accent' : ''}`}
             role="radio"
@@ -69,6 +71,7 @@ export default function CheckoutOptions() {
               if (isNavKey(key)) {
                 const next = list[targetIdx]
                 setMethod(next)
+                try { eventService.track('payment_method_selected', { method: next }) } catch {}
                 announce(next === 'cod' ? 'Payment method: Cash on Delivery selected.' : 'Payment method: Online payment selected.', 'polite')
                 e.preventDefault()
               }
@@ -80,7 +83,7 @@ export default function CheckoutOptions() {
 
           <button
             type="button"
-            onClick={() => { setMethod('online'); announce('Payment method: Online payment selected.', 'polite') }}
+            onClick={() => { setMethod('online'); try { eventService.track('payment_method_selected', { method: 'online' }) } catch {}; announce('Payment method: Online payment selected.', 'polite') }}
             aria-label="Online Payment (Card/UPI)"
             className={`bg-white rounded-lg shadow-sm p-6 flex items-center justify-center hover:ring-2 hover:ring-brand-accentLight transition ${method === 'online' ? 'ring-2 ring-brand-accent' : ''}`}
             role="radio"
@@ -95,6 +98,7 @@ export default function CheckoutOptions() {
               if (isNavKey(key)) {
                 const next = list[targetIdx]
                 setMethod(next)
+                try { eventService.track('payment_method_selected', { method: next }) } catch {}
                 announce(next === 'cod' ? 'Payment method: Cash on Delivery selected.' : 'Payment method: Online payment selected.', 'polite')
                 e.preventDefault()
               }

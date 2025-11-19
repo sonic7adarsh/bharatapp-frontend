@@ -1,21 +1,28 @@
 import axios from '../lib/axios'
-import { generateOrders } from '../lib/mock'
 
 // Minimal seller API wrapper following conventions used elsewhere
 const sellerService = {
   // Stores owned by the seller
   async getSellerStores(params = {}) {
     try {
-      const { data } = await axios.get('/api/seller/stores', { params })
-      return Array.isArray(data) ? data : []
+      // Do not default-filter to open; let caller decide visibility
+      const finalParams = { ...params }
+      const { data } = await axios.get('/api/seller/stores', { params: finalParams })
+      // Support both array response and object-wrapped { stores: [] }
+      const list = Array.isArray(data) ? data : (Array.isArray(data?.stores) ? data.stores : [])
+      return list
     } catch (e) {
-      // Local fallback: read stores created during onboarding
-      try {
-        const saved = localStorage.getItem('stores')
-        const stores = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        return stores
-      } catch {}
+      console.error('getSellerStores failed:', e)
       return []
+    }
+  },
+  async getSellerStore(storeId) {
+    try {
+      const { data } = await axios.get(`/api/seller/stores/${storeId}`)
+      return data
+    } catch (e) {
+      console.error('getSellerStore failed:', e)
+      return null
     }
   },
   async createStore(payload) {
@@ -40,34 +47,8 @@ const sellerService = {
       const { data } = await axios.post('/api/seller/stores', body, { showSuccessToast: true, successMessage: 'Store created successfully.' })
       return data
     } catch (e) {
-      // Local mock success: persist minimal store data and elevate role to seller
-      const mockId = `s_${Date.now()}`
-      const mockStore = {
-        id: mockId,
-        name: payload?.name || `New Store ${mockId}`,
-        area: payload?.area || 'Unknown Area',
-        city: payload?.city || '',
-        address: payload?.address || '',
-        phone: payload?.phone || '',
-        pincode: payload?.pincode || '',
-        category: payload?.category || 'Grocery',
-        type: payload?.type || 'Store',
-        description: payload?.description || '',
-      }
-      try {
-        const saved = localStorage.getItem('stores')
-        const stores = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        stores.push(mockStore)
-        localStorage.setItem('stores', JSON.stringify(stores))
-        // Elevate current user to seller after onboarding
-        const rawUser = localStorage.getItem('user')
-        if (rawUser) {
-          const u = JSON.parse(rawUser)
-          const next = { ...u, role: 'seller' }
-          localStorage.setItem('user', JSON.stringify(next))
-        }
-      } catch {}
-      return { success: true, store: mockStore }
+      console.error('createStore failed:', e)
+      throw e
     }
   },
   async updateStore(storeId, payload) {
@@ -75,20 +56,8 @@ const sellerService = {
       const { data } = await axios.patch(`/api/seller/stores/${storeId}`, payload, { showSuccessToast: true, successMessage: 'Store updated.' })
       return data
     } catch (e) {
-      // Local fallback: update store in localStorage if present
-      try {
-        const raw = localStorage.getItem('stores')
-        const list = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
-        const idx = list.findIndex(s => String(s.id || s._id) === String(storeId))
-        if (idx >= 0) {
-          const next = { ...list[idx], ...payload }
-          list[idx] = next
-          localStorage.setItem('stores', JSON.stringify(list))
-          return next
-        }
-      } catch {}
-      // If not found locally, return payload as acknowledgment
-      return payload
+      console.error('updateStore failed:', e)
+      throw e
     }
   },
 
@@ -98,13 +67,7 @@ const sellerService = {
       const { data } = await axios.get(`/api/seller/stores/${storeId}/products`, { params })
       return Array.isArray(data) ? data : []
     } catch (e) {
-      // Local fallback: read products stored via createProduct mock
-      try {
-        const key = `seller_products_${storeId}`
-        const saved = localStorage.getItem(key)
-        const products = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        return products
-      } catch {}
+      console.error('getStoreProducts failed:', e)
       return []
     }
   },
@@ -116,36 +79,20 @@ const sellerService = {
       formData.append('price', payload.price)
       formData.append('description', payload.description)
       formData.append('category', payload.category)
-      formData.append('image', payload.imageFile)
+      // Backend expects field name 'imageFile' for uploads
+      formData.append('imageFile', payload.imageFile)
       body = formData
+    } else {
+      // Exclude imageFile from JSON payload if not uploading
+      const { imageFile, ...rest } = payload || {}
+      body = rest
     }
     try {
       const { data } = await axios.post(`/api/seller/stores/${storeId}/products`, body, { showSuccessToast: true, successMessage: 'Product added successfully.' })
       return data
     } catch (e) {
-      // Local fallback: persist seller product per store
-      const id = `prod_${Date.now()}`
-      let imageDataUrl = ''
-      try {
-        if (payload?.imageFile) {
-          const reader = new FileReader()
-          imageDataUrl = await new Promise((resolve) => {
-            reader.onload = () => resolve(String(reader.result || ''))
-            reader.onerror = () => resolve('')
-            reader.readAsDataURL(payload.imageFile)
-          })
-        }
-      } catch {}
-      const { imageFile, ...rest } = payload || {}
-      const product = { id, ...rest, imageDataUrl, storeId }
-      try {
-        const key = `seller_products_${storeId}`
-        const saved = localStorage.getItem(key)
-        const products = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        products.unshift(product)
-        localStorage.setItem(key, JSON.stringify(products))
-      } catch {}
-      return { success: true, product }
+      console.error('createProduct failed:', e)
+      throw e
     }
   },
   async updateProduct(productId, payload) {
@@ -153,23 +100,8 @@ const sellerService = {
       const { data } = await axios.patch(`/api/seller/products/${productId}`, payload, { showSuccessToast: true, successMessage: 'Product updated.' })
       return data
     } catch (e) {
-      // Local fallback: update product across any store list in localStorage
-      try {
-        const keys = Object.keys(localStorage)
-        for (const k of keys) {
-          if (!k.startsWith('seller_products_')) continue
-          const raw = localStorage.getItem(k)
-          const list = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
-          const idx = list.findIndex(p => (p.id || p._id) === productId)
-          if (idx >= 0) {
-            const next = { ...list[idx], ...payload }
-            list[idx] = next
-            localStorage.setItem(k, JSON.stringify(list))
-            return next
-          }
-        }
-      } catch {}
-      return payload
+      console.error('updateProduct failed:', e)
+      throw e
     }
   },
   async deleteProduct(productId) {
@@ -177,20 +109,8 @@ const sellerService = {
       const { data } = await axios.delete(`/api/seller/products/${productId}`, { showSuccessToast: true, successMessage: 'Product deleted.' })
       return data
     } catch (e) {
-      // Local fallback: remove product from any seller_products_<storeId> list
-      try {
-        const keys = Object.keys(localStorage)
-        for (const k of keys) {
-          if (!k.startsWith('seller_products_')) continue
-          const raw = localStorage.getItem(k)
-          const list = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
-          const next = list.filter(p => (p.id || p._id) !== productId)
-          if (next.length !== list.length) {
-            localStorage.setItem(k, JSON.stringify(next))
-          }
-        }
-      } catch {}
-      return { success: true }
+      console.error('deleteProduct failed:', e)
+      throw e
     }
   },
   async updateInventory(productId, payload) {
@@ -198,23 +118,8 @@ const sellerService = {
       const { data } = await axios.patch(`/api/seller/products/${productId}/inventory`, payload, { showSuccessToast: true, successMessage: 'Inventory updated.' })
       return data
     } catch (e) {
-      // Local fallback: update inventory on any matching product across seller_products_* lists
-      try {
-        const keys = Object.keys(localStorage)
-        for (const k of keys) {
-          if (!k.startsWith('seller_products_')) continue
-          const raw = localStorage.getItem(k)
-          const list = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
-          const idx = list.findIndex(p => (p.id || p._id) === productId)
-          if (idx >= 0) {
-            const next = { ...list[idx], ...payload }
-            list[idx] = next
-            localStorage.setItem(k, JSON.stringify(list))
-            return next
-          }
-        }
-      } catch {}
-      return payload
+      console.error('updateInventory failed:', e)
+      throw e
     }
   },
 
@@ -222,21 +127,11 @@ const sellerService = {
   async getOrders(params = {}) {
     try {
       const { data } = await axios.get('/api/seller/orders', { params })
-      return Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
+      const list = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
+      return list
     } catch (e) {
-      // Fallback: local seller orders if present, otherwise storefront orders, otherwise mock
-      try {
-        const rawSeller = localStorage.getItem('seller_orders')
-        const sellerOrders = Array.isArray(rawSeller ? JSON.parse(rawSeller) : null) ? JSON.parse(rawSeller) : []
-        if (sellerOrders.length > 0) return sellerOrders
-      } catch {}
-      try {
-        const raw = localStorage.getItem('orders')
-        const orders = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
-        const filtered = orders.filter(o => String(o?.type || 'order') !== 'room_booking')
-        if (filtered.length > 0) return filtered
-      } catch {}
-      return generateOrders(5)
+      console.error('getOrders failed:', e)
+      return []
     }
   },
   async getOrder(orderId) {
@@ -244,21 +139,8 @@ const sellerService = {
       const { data } = await axios.get(`/api/seller/orders/${orderId}`)
       return data
     } catch (e) {
-      // Fallback: find in local orders
-      try {
-        const sources = []
-        const rawSeller = localStorage.getItem('seller_orders')
-        if (rawSeller) sources.push(JSON.parse(rawSeller))
-        const raw = localStorage.getItem('orders')
-        if (raw) sources.push(JSON.parse(raw))
-        const orders = sources.flat().filter(Boolean)
-        const found = orders.find(o => String(o.id || '').toLowerCase() === String(orderId).toLowerCase())
-          || orders.find(o => String(o.reference || '').toLowerCase() === String(orderId).toLowerCase())
-        return found || null
-      } catch {}
-      // Last resort: generate and attempt match
-      const mock = generateOrders(5)
-      return mock.find(o => String(o.id || '').toLowerCase() === String(orderId).toLowerCase()) || null
+      console.error('getOrder failed:', e)
+      return null
     }
   },
   async updateOrderStatus(orderId, payload) {
@@ -266,24 +148,8 @@ const sellerService = {
       const { data } = await axios.patch(`/api/seller/orders/${orderId}/status`, payload, { showSuccessToast: true, successMessage: 'Order status updated.' })
       return data
     } catch (e) {
-      // Fallback: update local order status if present
-      try {
-        const sources = []
-        const rawSeller = localStorage.getItem('seller_orders')
-        if (rawSeller) sources.push(['seller_orders', JSON.parse(rawSeller)])
-        const raw = localStorage.getItem('orders')
-        if (raw) sources.push(['orders', JSON.parse(raw)])
-        for (const [key, list] of sources) {
-          const idx = Array.isArray(list) ? list.findIndex(o => (o.id || o.reference) === orderId) : -1
-          if (idx >= 0) {
-            const next = { ...list[idx], ...payload }
-            list[idx] = next
-            localStorage.setItem(key, JSON.stringify(list))
-            return next
-          }
-        }
-      } catch {}
-      return { id: orderId, ...payload }
+      console.error('updateOrderStatus failed:', e)
+      throw e
     }
   },
   async requestRefund(orderId, payload) {
@@ -291,8 +157,8 @@ const sellerService = {
       const { data } = await axios.post(`/api/seller/orders/${orderId}/refunds`, payload, { showSuccessToast: true, successMessage: 'Refund requested.' })
       return data
     } catch (e) {
-      // Assume refund request recorded in mock mode
-      return { success: true, orderId, ...payload }
+      console.error('requestRefund failed:', e)
+      throw e
     }
   },
 
@@ -302,11 +168,7 @@ const sellerService = {
       const { data } = await axios.get('/api/seller/bookings', { params })
       return Array.isArray(data) ? data : []
     } catch (e) {
-      try {
-        const saved = localStorage.getItem('bookings')
-        const bookings = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        return bookings
-      } catch {}
+      console.error('getBookings failed:', e)
       return []
     }
   },
@@ -315,12 +177,7 @@ const sellerService = {
       const { data } = await axios.get(`/api/seller/bookings/${bookingId}`)
       return data
     } catch (e) {
-      try {
-        const saved = localStorage.getItem('bookings')
-        const bookings = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        const found = bookings.find(b => String(b.id || '').toLowerCase() === String(bookingId).toLowerCase())
-        return found || null
-      } catch {}
+      console.error('getBooking failed:', e)
       return null
     }
   },
@@ -329,19 +186,8 @@ const sellerService = {
       const { data } = await axios.patch(`/api/seller/bookings/${bookingId}/status`, payload, { showSuccessToast: true, successMessage: 'Booking status updated.' })
       return data
     } catch (e) {
-      // Fallback: update local booking status if present
-      try {
-        const saved = localStorage.getItem('bookings')
-        const bookings = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        const idx = bookings.findIndex(b => (b.id || b.reference) === bookingId)
-        if (idx >= 0) {
-          const next = { ...bookings[idx], ...payload }
-          bookings[idx] = next
-          localStorage.setItem('bookings', JSON.stringify(bookings))
-          return next
-        }
-      } catch {}
-      return { id: bookingId, ...payload }
+      console.error('updateBookingStatus failed:', e)
+      throw e
     }
   },
 
@@ -351,11 +197,7 @@ const sellerService = {
       const { data } = await axios.get('/api/seller/payouts')
       return Array.isArray(data) ? data : []
     } catch (e) {
-      try {
-        const saved = localStorage.getItem('payouts')
-        const payouts = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        return payouts
-      } catch {}
+      console.error('getPayouts failed:', e)
       return []
     }
   },
@@ -364,16 +206,8 @@ const sellerService = {
       const { data } = await axios.post('/api/seller/payouts/request', payload, { showSuccessToast: true, successMessage: 'Payout requested.' })
       return data
     } catch (e) {
-      // Local fallback: append request into payouts list
-      try {
-        const saved = localStorage.getItem('payouts')
-        const payouts = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        const req = { id: 'payout_' + Date.now(), status: 'requested', ...payload }
-        payouts.unshift(req)
-        localStorage.setItem('payouts', JSON.stringify(payouts))
-        return { success: true, payout: req }
-      } catch {}
-      return { success: true }
+      console.error('requestPayout failed:', e)
+      throw e
     }
   },
   async getPayoutConfig() {
@@ -381,10 +215,7 @@ const sellerService = {
       const { data } = await axios.get('/api/seller/payouts/config')
       return data
     } catch (e) {
-      try {
-        const saved = localStorage.getItem('payout_config')
-        if (saved) return JSON.parse(saved)
-      } catch {}
+      console.error('getPayoutConfig failed:', e)
       return { method: 'upi', upiId: '', minThreshold: 0 }
     }
   },
@@ -393,15 +224,8 @@ const sellerService = {
       const { data } = await axios.patch('/api/seller/payouts/config', payload, { showSuccessToast: true, successMessage: 'Payout config updated.' })
       return data
     } catch (e) {
-      // Local fallback: merge and persist
-      try {
-        const saved = localStorage.getItem('payout_config')
-        const base = saved ? JSON.parse(saved) : { method: 'upi', upiId: '' }
-        const next = { ...base, ...payload }
-        localStorage.setItem('payout_config', JSON.stringify(next))
-        return next
-      } catch {}
-      return payload
+      console.error('updatePayoutConfig failed:', e)
+      throw e
     }
   },
 
@@ -411,14 +235,7 @@ const sellerService = {
       const { data } = await axios.get('/api/seller/analytics/overview', { params })
       return data || {}
     } catch (e) {
-      // Fallback: derive simple totals from local orders
-      try {
-        const raw = localStorage.getItem('orders')
-        const orders = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
-        const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0)
-        const series = orders.map(o => ({ x: o.createdAt || new Date().toISOString(), y: o.total || 0 }))
-        return { totals: { revenue: totalRevenue, orders: orders.length }, series }
-      } catch {}
+      console.error('getOverviewAnalytics failed:', e)
       return { totals: {}, series: [] }
     }
   },
@@ -429,16 +246,64 @@ const sellerService = {
       const { data } = await axios.post('/api/seller/announcements', payload, { showSuccessToast: true })
       return data
     } catch (e) {
-      // Local fallback: persist announcements
-      try {
-        const saved = localStorage.getItem('announcements')
-        const list = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        const next = { id: 'ann_' + Date.now(), ...payload }
-        list.unshift(next)
-        localStorage.setItem('announcements', JSON.stringify(list))
-        return { success: true, announcement: next }
-      } catch {}
-      return { success: true }
+      console.error('postAnnouncement failed:', e)
+      throw e
+    }
+  },
+
+  // Bulk product upload (CSV)
+  async presignBulkProductCsv({ fileName, contentType = 'text/csv', folder = 'bulk-products' }) {
+    try {
+      const { data } = await axios.post('/api/seller/products/bulk-upload/presign', { fileName, contentType, folder })
+      return data
+    } catch (e) {
+      console.error('presignBulkProductCsv failed:', e)
+      throw e
+    }
+  },
+  async bulkUploadProducts(file, { mode = 'upsert', dryRun = false, defaultCurrency, defaultTaxRate } = {}) {
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('mode', mode)
+      form.append('dryRun', String(dryRun))
+      if (defaultCurrency) form.append('defaultCurrency', defaultCurrency)
+      if (defaultTaxRate != null) form.append('defaultTaxRate', String(defaultTaxRate))
+      const { data } = await axios.post('/api/seller/products/bulk-upload', form, { showSuccessToast: true, successMessage: dryRun ? 'Dry run completed.' : 'Bulk upload submitted.' })
+      return data
+    } catch (e) {
+      console.error('bulkUploadProducts failed:', e)
+      throw e
+    }
+  },
+  async bulkUploadProductsByKey(key, { mode = 'upsert', dryRun = false, defaultCurrency, defaultTaxRate } = {}) {
+    try {
+      const body = { key, mode, dryRun }
+      if (defaultCurrency) body.defaultCurrency = defaultCurrency
+      if (defaultTaxRate != null) body.defaultTaxRate = defaultTaxRate
+      const { data } = await axios.post('/api/seller/products/bulk-upload', body, { showSuccessToast: true, successMessage: dryRun ? 'Dry run completed.' : 'Bulk upload submitted.' })
+      return data
+    } catch (e) {
+      console.error('bulkUploadProductsByKey failed:', e)
+      throw e
+    }
+  },
+  async getBulkUploadStatus(jobId) {
+    try {
+      const { data } = await axios.get(`/api/seller/products/bulk-upload/${jobId}`)
+      return data
+    } catch (e) {
+      console.error('getBulkUploadStatus failed:', e)
+      throw e
+    }
+  },
+  async getBulkUploadErrors(jobId) {
+    try {
+      const { data } = await axios.get(`/api/seller/products/bulk-upload/${jobId}/errors`)
+      return Array.isArray(data) ? data : []
+    } catch (e) {
+      console.error('getBulkUploadErrors failed:', e)
+      return []
     }
   }
 }

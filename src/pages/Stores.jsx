@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { STORES } from '../data/stores'
 import { SkeletonStoreCard } from '../components/Skeletons'
 import storeService from '../services/storeService'
 import locationService from '../services/locationService'
@@ -17,11 +16,13 @@ export default function Stores() {
   const [minRating, setMinRating] = useState(0)
   const [city, setCity] = useState('')
   const [detectingCity, setDetectingCity] = useState(false)
+  const [coords, setCoords] = useState(null)
+  const [detectingCoords, setDetectingCoords] = useState(false)
   const [sortBy, setSortBy] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const location = useLocation()
   const { announce } = useAnnouncer()
-  const { isSeller, isAdmin } = useAuth()
+  const { isAuthenticated, isSeller, isAdmin } = useAuth()
 
   const categories = useMemo(() => (
     ['All', 'Grocery', 'Electronics', 'Fashion', 'Healthcare']
@@ -37,26 +38,21 @@ export default function Stores() {
         if (search.trim()) params.search = search.trim()
         if (category && category !== 'All' && category !== '') params.category = category
         if (city && city !== 'All' && city !== '') params.city = city
+        if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+          params.lat = coords.lat
+          params.lon = coords.lon
+          params.lng = coords.lng
+        }
         const res = await storeService.getStores(params, { params, signal: controller.signal })
         if (!active) return
         setStores(Array.isArray(res) ? res : [])
         setError('')
       } catch (err) {
-        // Ignore cancellations
         if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
         console.error('Failed to fetch stores:', err)
         if (!active) return
-        // Fallback to local sample data so the page remains usable
-        const q = (search || '').toLowerCase()
-        const filtered = STORES.filter(s => {
-          const matchName = s.name.toLowerCase().includes(q)
-          const matchCat = category && category !== 'All' && category !== '' ? (s.category || '').toLowerCase() === category.toLowerCase() : true
-          const sourceCity = (s.location || s.area || '').toLowerCase()
-          const matchCity = city && city !== 'All' && city !== '' ? sourceCity.includes(city.toLowerCase()) : true
-          return matchName && matchCat && matchCity
-        })
-        setStores(filtered)
-        setError('')
+        setError('Failed to load stores.')
+        setStores([])
       } finally {
         if (active) setLoading(false)
       }
@@ -67,7 +63,7 @@ export default function Stores() {
       controller.abort()
       clearTimeout(handler)
     }
-  }, [search, category, city])
+  }, [search, category, city, coords?.lat, coords?.lon])
 
   // initialize from URL query params
   useEffect(() => {
@@ -108,6 +104,33 @@ export default function Stores() {
     run()
     return () => { active = false }
   }, [city])
+
+  // Try auto-detect coords for nearby search
+  useEffect(() => {
+    let active = true
+    async function run() {
+      try {
+        if (coords) return
+        setDetectingCoords(true)
+        let cached = null
+        try { cached = JSON.parse(localStorage.getItem('user_coords') || 'null') } catch {}
+        if (cached && typeof cached.lat === 'number' && typeof cached.lon === 'number') {
+          setCoords(cached)
+          return
+        }
+        const detected = await locationService.detectCoordsViaGeolocation()
+        if (!active) return
+        if (detected) {
+          setCoords(detected)
+          try { localStorage.setItem('user_coords', JSON.stringify(detected)) } catch {}
+        }
+      } finally {
+        if (active) setDetectingCoords(false)
+      }
+    }
+    run()
+    return () => { active = false }
+  }, [coords])
 
   // derive sorted view
   const sortedStores = useMemo(() => {
@@ -175,6 +198,9 @@ export default function Stores() {
       <section role="region" aria-labelledby="stores-filters-heading" className="sticky top-16 z-10 bg-white/90 backdrop-blur rounded-xl shadow-sm p-3 mb-4">
         <h2 id="stores-filters-heading" className="sr-only">Store Filters</h2>
         <div className="flex flex-col gap-2">
+          {(detectingCity || detectingCoords) && (
+            <div className="text-xs text-gray-600">Detecting your location6hellip;</div>
+          )}
           {/* Row 1: Search + Sort + CTA */}
           <div className="flex items-center gap-2 flex-wrap">
             <label htmlFor="stores-search" className="sr-only">Search stores</label>
@@ -217,7 +243,7 @@ export default function Stores() {
                 onClick={() => setFiltersOpen(true)}
               >Filters</button>
             </PressScale>
-            {(isSeller || isAdmin) && (
+            {isAuthenticated && !(isSeller || isAdmin) && (
               <div className="ml-auto">
                 <PressScale className="inline-block">
                   <Link

@@ -7,6 +7,7 @@ import useAuth from '../hooks/useAuth'
 
 export default function StoreOnboard() {
   const { isAuthenticated, isSeller, isAdmin, token, loginWithToken } = useAuth()
+  const USE_MOCK_SELLER_AUTH = (import.meta.env?.VITE_USE_MOCK_SELLER_AUTH ?? 'true') === 'true'
   const [form, setForm] = useState({
     name: '',
     category: '',
@@ -114,6 +115,12 @@ export default function StoreOnboard() {
       try {
         const latest = await authService.profile()
         loginWithToken({ token, user: latest })
+        const role = String(latest?.role || '').toLowerCase()
+        if (USE_MOCK_SELLER_AUTH && !['seller','vendor'].includes(role) && newStore?.id) {
+          try { localStorage.setItem('sellerUpgradeByOnboard', 'true') } catch {}
+          const override = { ...(latest || {}), role: 'seller' }
+          loginWithToken({ token, user: override })
+        }
       } catch (e) {
         // Non-blocking: proceed to dashboard; axios interceptor will toast errors
         console.debug('Profile refresh after store onboarding failed:', e)

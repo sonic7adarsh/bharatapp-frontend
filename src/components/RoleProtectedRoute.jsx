@@ -26,7 +26,11 @@ export default function RoleProtectedRoute({ roles = [], children }) {
 
   const role = String(user?.role || '').toLowerCase()
   const allowed = Array.isArray(roles) && roles.length > 0 ? roles.map(r => String(r).toLowerCase()) : []
-  const isAllowed = allowed.length === 0 ? true : allowed.includes(role)
+  // Treat 'vendor' as equivalent to 'seller' for access control
+  const normalizedAllowed = allowed.includes('seller') && !allowed.includes('vendor')
+    ? [...allowed, 'vendor']
+    : allowed
+  const isAllowed = normalizedAllowed.length === 0 ? true : normalizedAllowed.includes(role)
 
   if (!isAllowed) {
     // Redirect authenticated but unauthorized users to partner onboarding when seller is required

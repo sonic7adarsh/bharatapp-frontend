@@ -1,19 +1,24 @@
 import axios from '../lib/axios'
 
 const paymentService = {
-  async createOrder({ amount, currency = 'INR' }) {
+  async initiatePayment({ amount, currency = 'INR', method = 'upi', address, phone }) {
     try {
-      const { data } = await axios.post('/api/storefront/payments/create-order', { amount, currency })
-      // Expect data like { id: 'order_xxx', amount }
+      const payload = { amount, currency, method, address, phone }
+      const { data } = await axios.post('/api/storefront/payments/initiate', payload, { showSuccessToast: true, successMessage: 'Payment initiated.' })
+      // Expected shape:
+      // { orderId, gateway: 'razorpay'|'native_upi'|'redirect', session: { key?, razorpayOrderId?, upiDeepLink?, redirectUrl? } }
       return data
     } catch (e) {
-      // Fallback: mock order
-      return { id: 'order_mock_' + Date.now(), amount }
+      // Fallback: minimal mock session
+      if (method === 'upi') {
+        return { orderId: 'order_mock_' + Date.now(), gateway: 'native_upi', session: { upiDeepLink: 'upi://pay?pa=test@upi&pn=BharatApp&am=' + (amount/100) + '&tn=BharatApp Order' } }
+      }
+      return { orderId: 'order_mock_' + Date.now(), gateway: 'razorpay', session: { razorpayOrderId: 'order_mock_' + Date.now(), key: '' } }
     }
   },
   async verifyPayment(payload) {
     try {
-      const { data } = await axios.post('/api/storefront/payments/verify', payload)
+      const { data } = await axios.post('/api/storefront/payments/verify', payload, { showSuccessToast: true, successMessage: 'Payment verified.' })
       return data
     } catch (e) {
       // Assume success in mock mode

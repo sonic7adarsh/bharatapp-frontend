@@ -30,4 +30,22 @@ export async function detectCityViaGeolocation() {
   })
 }
 
-export default { detectCityViaGeolocation }
+export async function detectCoordsViaGeolocation() {
+  if (!('geolocation' in navigator)) return null
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords || {}
+        if (typeof latitude === 'number' && typeof longitude === 'number') {
+          resolve({ lat: latitude, lon: longitude, lng: longitude })
+        } else {
+          resolve(null)
+        }
+      },
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    )
+  })
+}
+
+export default { detectCityViaGeolocation, detectCoordsViaGeolocation }

@@ -248,4 +248,38 @@ Prescriptions (Pharmacy)
   curl -X POST "{{BASE}}/store/payments/verify" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -H "X-Tenant-Domain: {{TENANT}}" -d '{"razorpay_order_id":"order_abc","razorpay_payment_id":"pay_def","razorpay_signature":"sig_xyz"}'
 
 - Payment webhook (server-to-server):
+
+Events & Observability
+- Track UI/navigation event:
+  curl -X POST "{{BASE}}/api/events" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -H "X-Tenant-Domain: {{TENANT}}" -d '{"name":"nav_click","payload":{"target":"/rooms/add","context":"account_dropdown"},"timestamp":1731234567890}'
+
+- Track business action event:
+  curl -X POST "{{BASE}}/api/events" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"name":"booking_update","payload":{"bookingId":"b_123","status":"confirmed"}}'
+
+- Suggested response (success):
+  { "ok": true, "id": "evt_abc123" }
+
+- Suggested response (failure):
+  { "ok": false, "code": "RATE_LIMITED", "message": "Too many events" }
+
+Capabilities & Config
+- Get seller stores (with capabilities):
+  curl -X GET "{{BASE}}/api/seller/stores" -H "Authorization: Bearer {{TOKEN}}"
+
+- Optional: Get platform config:
+  curl -X GET "{{BASE}}/api/config" -H "Authorization: Bearer {{TOKEN}}"
+  # Response may include capability defaults and acceptance window values used server-side.
   curl -X POST "{{BASE}}/store/payments/webhook" -H "Content-Type: application/json" -d '{"event":"payment.captured","payload":{}}'
+
+Internationalization (I18n)
+- Get available locales:
+  curl -X GET "{{BASE}}/api/i18n/locales" -H "Content-Type: application/json" -H "X-Tenant-Domain: {{TENANT}}"
+
+- Get translations for a locale:
+  curl -X GET "{{BASE}}/api/i18n/translations?locale=hi" -H "Content-Type: application/json" -H "X-Tenant-Domain: {{TENANT}}"
+
+- Save user language preference:
+  curl -X POST "{{BASE}}/api/storefront/i18n/preferences" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"locale":"hi"}'
+
+- Optional: track language change event:
+  curl -X POST "{{BASE}}/api/events" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"name":"language_change","payload":{"locale":"hi"}}'

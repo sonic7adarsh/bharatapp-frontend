@@ -1,15 +1,39 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import { PageFade, PressScale } from '../motion/presets'
+import sellerService from '../services/sellerService'
 
 export default function Partner() {
   const { isAuthenticated, isSeller, isAdmin } = useAuth()
   const navigate = useNavigate()
+  const [allowRooms, setAllowRooms] = useState(false)
 
   const startOnboarding = () => {
     navigate('/onboard')
   }
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadSellerStores() {
+      if (!(isSeller || isAdmin)) { setAllowRooms(false); return }
+      try {
+        const list = await sellerService.getSellerStores()
+        if (cancelled) return
+        const isHospitality = (Array.isArray(list) ? list : []).some(s => {
+          const cat = String(s?.category || s?.type || '').toLowerCase()
+          return cat.includes('hotel') || cat.includes('hospitality') || cat.includes('residency')
+        })
+        const hasBookingsCapability = (Array.isArray(list) ? list : []).some(s => s?.capabilities?.bookings === true)
+        setAllowRooms(isHospitality || hasBookingsCapability)
+      } catch (e) {
+        if (cancelled) return
+        setAllowRooms(false)
+      }
+    }
+    loadSellerStores()
+    return () => { cancelled = true }
+  }, [isSeller, isAdmin])
 
   return (
     <PageFade className="max-w-3xl mx-auto my-10 px-4">
@@ -49,7 +73,9 @@ export default function Partner() {
                 </div>
                 <Link to="/dashboard" className="btn-secondary w-full text-center inline-block">Go to Dashboard</Link>
                 <Link to="/products/add" className="btn-secondary w-full text-center inline-block">Add Product</Link>
-                <Link to="/rooms/add" className="btn-secondary w-full text-center inline-block">Add Room</Link>
+                {allowRooms && (
+                  <Link to="/rooms/add" className="btn-secondary w-full text-center inline-block">Add Room</Link>
+                )}
               </div>
             ) : (
               isAuthenticated ? (

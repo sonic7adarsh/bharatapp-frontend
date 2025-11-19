@@ -17,13 +17,19 @@ export default function Checkout() {
   const { announce } = useAnnouncer()
   const { isAuthenticated } = useAuth()
   const [method, setMethod] = useState('cod')
+  const [onlineMethod, setOnlineMethod] = useState('upi')
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     let next = params.get('method')
+    let sub = params.get('online')
     if (!next) {
       try { next = localStorage.getItem('checkout_method') || 'cod' } catch {}
     }
+    if (!sub) {
+      try { sub = localStorage.getItem('checkout_online_method') || 'upi' } catch {}
+    }
     setMethod(next === 'online' ? 'online' : 'cod')
+    setOnlineMethod(['upi','card','netbanking','wallet'].includes(sub) ? sub : 'upi')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const [loading, setLoading] = useState(false)
@@ -74,6 +80,17 @@ export default function Checkout() {
     try { localStorage.setItem('checkout_method', normalized) } catch {}
     const params = new URLSearchParams(location.search)
     params.set('method', normalized)
+    navigate({ pathname: '/checkout', search: params.toString() }, { replace: true })
+  }
+
+  const setOnlineMethodControlled = (m) => {
+    const normalized = ['upi','card','netbanking','wallet'].includes(m) ? m : 'upi'
+    setOnlineMethod(normalized)
+    announce(`Online payment type selected: ${normalized}.`, 'polite')
+    try { localStorage.setItem('checkout_online_method', normalized) } catch {}
+    const params = new URLSearchParams(location.search)
+    params.set('method', 'online')
+    params.set('online', normalized)
     navigate({ pathname: '/checkout', search: params.toString() }, { replace: true })
   }
 
@@ -333,7 +350,7 @@ export default function Checkout() {
     setError('')
     try {
       const payload = {
-        items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+        items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, storeId: i.storeId || null, requiresPrescription: !!i.requiresPrescription })),
         totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
         address,
         deliverySlot,
@@ -348,7 +365,13 @@ export default function Checkout() {
       clearCart()
       try { localStorage.removeItem('cart_requires_prescription') } catch {}
     } catch (err) {
-      const message = err?.response?.data?.message || 'Failed to place order. Please try again.'
+      const code = err?.response?.data?.code
+      const details = err?.response?.data?.details
+      let message = err?.response?.data?.message || 'Failed to place order. Please try again.'
+      if (code === 'STORE_CLOSED') {
+        const until = details?.closedUntil
+        message = `Store is closed${until ? ` until ${until}` : ''}. Please try again later or choose another store.`
+      }
       setError(message)
       console.error('Order placement error:', err)
     } finally {
@@ -382,22 +405,97 @@ export default function Checkout() {
     setLoading(true)
     setError('')
     try {
-      const ok = await loadRazorpay()
-      const key = import.meta.env.VITE_RAZORPAY_KEY_ID || ''
       const amountPaise = Math.round(Number(computePayable()) * 100)
+      const session = await paymentService.initiatePayment({
+        amount: amountPaise,
+        currency: 'INR',
+        method: onlineMethod,
+        address,
+        phone: address?.phone,
+      })
 
-      let order = null
-      try {
-        order = await paymentService.createOrder({ amount: amountPaise, currency: 'INR' })
-      } catch (e) {
-        order = null
+      // Branch by session shape
+      if (session?.gateway === 'razorpay' && session?.session?.razorpayOrderId) {
+        const ok = await loadRazorpay()
+        const keyFromBackend = session?.session?.key || ''
+        const fallbackKey = import.meta.env.VITE_RAZORPAY_KEY_ID || ''
+        const useKey = keyFromBackend || fallbackKey
+        if (!ok || !useKey) throw new Error('Razorpay not available')
+
+        const options = {
+          key: useKey,
+          amount: amountPaise,
+          currency: 'INR',
+          name: 'BharatApp',
+          description: 'Order Payment',
+          order_id: session.session.razorpayOrderId,
+          prefill: {
+            name: address.name,
+            email: '',
+            contact: address.phone,
+          },
+          notes: { city: address.city, pincode: address.pincode, instructions: deliveryInstructions },
+          handler: async (response) => {
+            try {
+              await paymentService.verifyPayment({
+                orderId: session.orderId || session.session.razorpayOrderId,
+                paymentId: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
+                method: 'razorpay',
+              })
+
+              const payload = {
+                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, storeId: i.storeId || null, requiresPrescription: !!i.requiresPrescription })),
+                totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
+                address,
+                deliverySlot,
+                promo,
+                deliveryInstructions,
+                prescriptions: prescriptions.map(f => ({ name: f.name, size: f.size, type: f.type })),
+                paymentMethod: 'online',
+                paymentInfo: {
+                  gateway: 'razorpay',
+                  orderId: session.orderId || session.session.razorpayOrderId,
+                  paymentId: response.razorpay_payment_id,
+                  transactionId: response.razorpay_payment_id,
+                  status: 'success',
+                  method: onlineMethod,
+                }
+              }
+              const data = await orderService.checkout(payload)
+              setOrderInfo(data || { reference: 'ORDER-' + Date.now() })
+              setSuccess(true)
+              clearCart()
+              try { localStorage.removeItem('cart_requires_prescription') } catch {}
+            } catch (err) {
+              const code = err?.response?.data?.code
+              const details = err?.response?.data?.details
+              let message = err?.response?.data?.message || 'Payment verification failed. Try again.'
+              if (code === 'STORE_CLOSED') {
+                const until = details?.closedUntil
+                message = `Store is closed${until ? ` until ${until}` : ''}. Please try again later or choose another store.`
+              }
+              setError(message)
+            }
+          },
+          theme: { color: '#0B3D91' },
+        }
+
+        const rzp = new window.Razorpay(options)
+        rzp.open()
+        return
       }
 
-      if (!ok || !key || !order?.id) {
-        toast.info('Proceeding with mock payment (no gateway configured)')
-        const txid = 'PAY-' + Date.now()
+      if (session?.gateway === 'native_upi' && session?.session?.upiDeepLink) {
+        // Open UPI app via deep link
+        toast.info('Opening UPI app for payment…')
+        window.location.href = session.session.upiDeepLink
+        // Optional: optimistic verify; backend should verify via callback/webhook
+        try {
+          await paymentService.verifyPayment({ orderId: session.orderId, method: 'upi' })
+        } catch {}
         const payload = {
-          items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+          items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, storeId: i.storeId || null, requiresPrescription: !!i.requiresPrescription })),
           totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
           address,
           deliverySlot,
@@ -405,7 +503,12 @@ export default function Checkout() {
           deliveryInstructions,
           prescriptions: prescriptions.map(f => ({ name: f.name, size: f.size, type: f.type })),
           paymentMethod: 'online',
-          paymentInfo: { gateway: 'mock', status: 'success', transactionId: txid, reference: txid }
+          paymentInfo: {
+            gateway: 'upi',
+            orderId: session.orderId,
+            status: 'success',
+            method: 'upi',
+          }
         }
         const data = await orderService.checkout(payload)
         setOrderInfo(data || { reference: 'ORDER-' + Date.now() })
@@ -415,59 +518,32 @@ export default function Checkout() {
         return
       }
 
-      const options = {
-        key,
-        amount: amountPaise,
-        currency: 'INR',
-        name: 'BharatApp',
-        description: 'Order Payment',
-        order_id: order.id,
-        prefill: {
-          name: address.name,
-          email: '',
-          contact: address.phone,
-        },
-        notes: { city: address.city, pincode: address.pincode, instructions: deliveryInstructions },
-        handler: async (response) => {
-          try {
-            await paymentService.verifyPayment({
-              orderId: order.id,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature,
-            })
-
-            const payload = {
-              items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
-              totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
-              address,
-              deliverySlot,
-              promo,
-              deliveryInstructions,
-              prescriptions: prescriptions.map(f => ({ name: f.name, size: f.size, type: f.type })),
-              paymentMethod: 'online',
-              paymentInfo: {
-                gateway: 'razorpay',
-                orderId: order.id,
-                paymentId: response.razorpay_payment_id,
-                transactionId: response.razorpay_payment_id,
-                status: 'success',
-              }
-            }
-            const data = await orderService.checkout(payload)
-            setOrderInfo(data || { reference: 'ORDER-' + Date.now() })
-            setSuccess(true)
-            clearCart()
-            try { localStorage.removeItem('cart_requires_prescription') } catch {}
-          } catch (err) {
-            const message = err?.response?.data?.message || 'Payment verification failed. Try again.'
-            setError(message)
-          }
-        },
-        theme: { color: '#0B3D91' },
+      if (session?.gateway === 'redirect' && session?.session?.redirectUrl) {
+        // Redirect to hosted payment page (cards/netbanking/wallet handled by provider)
+        window.location.href = session.session.redirectUrl
+        toast.info('Redirecting to payment provider…')
+        return
       }
 
-      const rzp = new window.Razorpay(options)
-      rzp.open()
+      // Fallback: mock payment
+      toast.info('Proceeding with mock payment (no gateway configured)')
+      const txid = 'PAY-' + Date.now()
+      const payload = {
+        items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, storeId: i.storeId || null, requiresPrescription: !!i.requiresPrescription })),
+        totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
+        address,
+        deliverySlot,
+        promo,
+        deliveryInstructions,
+        prescriptions: prescriptions.map(f => ({ name: f.name, size: f.size, type: f.type })),
+        paymentMethod: 'online',
+        paymentInfo: { gateway: 'mock', status: 'success', transactionId: txid, reference: txid, method: onlineMethod }
+      }
+      const data = await orderService.checkout(payload)
+      setOrderInfo(data || { reference: 'ORDER-' + Date.now() })
+      setSuccess(true)
+      clearCart()
+      try { localStorage.removeItem('cart_requires_prescription') } catch {}
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to start payment. Please try again.'
       setError(message)
@@ -672,27 +748,54 @@ export default function Checkout() {
               >Online</button>
             </div>
           </div>
-            <div className="p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-600">Payment Method</div>
-                <div className="font-medium" aria-label={method === 'cod' ? 'Cash on Delivery' : 'Online Payment'}>
-                  {method === 'cod' ? (
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-600">Payment Method</div>
+              <div className="font-medium" aria-label={method === 'cod' ? 'Cash on Delivery' : 'Online Payment'}>
+                {method === 'cod' ? (
             <span className="text-2xl" aria-hidden="true">💵</span>
-                  ) : (
+                ) : (
             <span aria-hidden="true">
                       <span className="text-2xl">💳</span>
                       <span className="text-2xl ml-1">📱</span>
                     </span>
-                  )}
-                </div>
-              </div>
-              <div className="text-xs text-gray-600" aria-live="polite" role="status">
-                {method === 'online' ? (
-              <span><span aria-hidden="true">🔒</span> Secure online payment via encrypted gateway</span>
-                ) : (
-                  <span>Pay in cash at delivery. No online payment needed.</span>
                 )}
               </div>
+            </div>
+            <div className="text-xs text-gray-600" aria-live="polite" role="status">
+              {method === 'online' ? (
+            <span><span aria-hidden="true">🔒</span> Secure online payment via encrypted gateway</span>
+              ) : (
+                <span>Pay in cash at delivery. No online payment needed.</span>
+              )}
+            </div>
+            {method === 'online' && (
+              <div className="mt-2" aria-live="polite">
+                <div className="text-xs text-gray-600">Choose online payment type</div>
+                <div role="radiogroup" aria-label="Online payment type" className="flex gap-2 flex-wrap mt-1">
+                  {[
+                    { key: 'upi', label: 'UPI', icon: '📱' },
+                    { key: 'card', label: 'Card', icon: '💳' },
+                    { key: 'netbanking', label: 'NetBanking', icon: '🏦' },
+                    { key: 'wallet', label: 'Wallet', icon: '👜' },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setOnlineMethodControlled(opt.key)}
+                      className={`px-3 py-1 rounded-full text-xs border flex items-center ${onlineMethod === opt.key ? 'bg-brand-accent text-white border-brand-accent' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                      role="radio"
+                      aria-checked={onlineMethod === opt.key}
+                      id={`online-${opt.key}`}
+                      tabIndex={onlineMethod === opt.key ? 0 : -1}
+                    >
+                      <span className="mr-1" aria-hidden="true">{opt.icon}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
               <div className="flex justify-between items-center">
                 <div className="text-sm text-gray-600">Delivery Slot</div>
                 <div className="font-medium">

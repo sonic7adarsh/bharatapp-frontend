@@ -247,3 +247,16 @@ curl -X GET 'http://localhost:8081/api/platform/products?search=milk&storeId=S10
 - Create product:
 curl -X POST 'http://localhost:8081/api/platform/products' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -d '{"name":"Paneer","price":120,"description":"Fresh paneer","category":"dairy","storeId":"S10"}'
   Sample Response: { "id":"P101","name":"Paneer","price":120 }
+
+Internationalization (I18n)
+- Get locales:
+curl -X GET 'http://localhost:8081/api/i18n/locales' -H 'Content-Type: application/json' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "code":"en","name":"English" }, { "code":"hi","name":"हिंदी" } ]
+
+- Get translations:
+curl -X GET 'http://localhost:8081/api/i18n/translations?locale=hi' -H 'Content-Type: application/json' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "app.title":"भारत शॉप", "nav.dashboard":"डैशबोर्ड" }
+
+- Save preference:
+curl -X POST 'http://localhost:8081/api/storefront/i18n/preferences' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -d '{"locale":"hi"}'
+  Sample Response: { "ok": true }

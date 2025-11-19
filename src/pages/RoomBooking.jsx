@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { STORES } from '../data/stores'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import orderService from '../services/orderService'
 import storeService from '../services/storeService'
@@ -12,9 +11,10 @@ import { format, addDays } from 'date-fns'
 export default function RoomBooking() {
   const { storeId, roomId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, isAuthenticated } = useAuth()
-  const store = useMemo(() => STORES.find(s => s.id === storeId), [storeId])
-  const room = useMemo(() => (store?.products || []).find(p => p.id === roomId), [store, roomId])
+  const [store, setStore] = useState(null)
+  const [room, setRoom] = useState(null)
   const [checkIn, setCheckIn] = useState(() => new Date().toISOString().slice(0,10))
   const [checkOut, setCheckOut] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0,10)
@@ -91,10 +91,11 @@ export default function RoomBooking() {
     } catch {}
   }, [checkIn, checkOut])
 
-  // Prefill guest details from authenticated user
+  // Prefill guest details from authenticated user (avoid synthetic usernames like "user1234")
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (!name && user.name) setName(user.name)
+      const synthetic = typeof user?.name === 'string' && /^user\d+$/i.test(user.name)
+      if (!name && user.name && !synthetic) setName(user.name)
       if (!phone && (user.phone || user.mobile)) setPhone(user.phone || user.mobile)
     }
   }, [isAuthenticated, user])
@@ -103,6 +104,54 @@ export default function RoomBooking() {
     const total = roomsGuests.reduce((a, b) => a + b, 0)
     setGuests(total)
   }, [roomsGuests])
+
+  // Resume pending booking after successful login (only when store & room are loaded)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    try {
+      const raw = sessionStorage.getItem('pending_room_booking')
+      if (!raw) return
+      const pending = JSON.parse(raw)
+      if (String(pending?.storeId) !== String(storeId) || String(pending?.roomId) !== String(roomId)) return
+      // Restore minimal form state
+      if (pending?.name) setName(pending.name)
+      if (pending?.phone) setPhone(pending.phone)
+      if (pending?.notes) setNotes(pending.notes)
+      if (pending?.checkIn) setCheckIn(pending.checkIn)
+      if (pending?.checkOut) setCheckOut(pending.checkOut)
+      if (Array.isArray(pending?.roomsGuests) && pending.roomsGuests.length > 0) setRoomsGuests(pending.roomsGuests)
+      // Only auto-continue when store & room are available
+      if (store && room) {
+        sessionStorage.removeItem('pending_room_booking')
+        confirmBooking()
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, storeId, roomId, store, room])
+
+  // Fetch store and room from backend (moved inside component)
+  useEffect(() => {
+    let active = true
+    const controller = new AbortController()
+    async function run() {
+      try {
+        const s = await storeService.getStore(storeId, { signal: controller.signal })
+        if (!active) return
+        setStore(s)
+        const products = await storeService.getProductsByStore(storeId, { signal: controller.signal })
+        if (!active) return
+        const r = (Array.isArray(products) ? products : []).find(p => String(p.id) === String(roomId))
+        setRoom(r || null)
+      } catch (e) {
+        if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') return
+        console.error('Failed to load store/room:', e)
+        setStore(null)
+        setRoom(null)
+      }
+    }
+    run()
+    return () => { active = false; controller.abort() }
+  }, [storeId, roomId])
 
   // Remove global +/−; rely on per-room controls only
 
@@ -134,12 +183,33 @@ export default function RoomBooking() {
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
           <p>Room not found.</p>
         </div>
-        <div className="mt-4"><Link to={`/store/${storeId}`} className="link-brand">Back to Store</Link></div>
+        <div className="mt-4"><Link to={`/hotels/${storeId}`} className="link-brand">Back to Hotel</Link></div>
       </PageFade>
     )
   }
 
-  const confirmBooking = async () => {
+  async function confirmBooking() {
+    // If not authenticated, save form state to resume after login
+    if (!isAuthenticated) {
+      try {
+        const resumePayload = {
+          storeId,
+          roomId,
+          checkIn,
+          checkOut,
+          guests,
+          roomsGuests,
+          name,
+          phone,
+          notes,
+          from: (location?.pathname || '') + (location?.search || ''),
+          createdAt: Date.now()
+        }
+        sessionStorage.setItem('pending_room_booking', JSON.stringify(resumePayload))
+      } catch {}
+      navigate('/mobile-login', { state: { from: (location?.pathname || '') + (location?.search || '') } })
+      return
+    }
     if (!name || !phone || !checkIn || !checkOut || guests < 1) {
       setError('Please fill guest details, dates, and guest count')
       return
@@ -147,56 +217,92 @@ export default function RoomBooking() {
     setLoading(true)
     setError('')
     try {
-      const totals = availability ? (() => {
-        const nightsLocal = availability.nights || 1
-        const mattressFee = (availability.extraMattressAllowed ? (availability.extraMattressCount || 0) * (availability.mattressFeePerNight || 0) * nightsLocal : 0)
-        const baseSubtotal = Number(availability.subtotal || 0)
-        const adjustedSubtotal = Math.max(0, baseSubtotal - mattressFee)
-        const adjustedTaxes = Math.round(adjustedSubtotal * 0.10)
-        const adjustedFees = Math.round(adjustedSubtotal * 0.05)
-        const adjustedTotal = adjustedSubtotal + adjustedTaxes + adjustedFees
-        return {
-          perNight: availability.base,
-          nights: availability.nights,
-          subtotal: adjustedSubtotal,
-          taxes: adjustedTaxes,
-          fees: adjustedFees,
-          payable: adjustedTotal
+      // Ensure availability is checked prior to checkout so backend gets room details
+      const cleanRoomsGuests = Array.isArray(roomsGuests)
+        ? roomsGuests.map(v => {
+            const n = Number(v)
+            return Number.isFinite(n) && n > 0 ? n : 1
+          })
+        : [Math.max(1, guests)]
+      let avail = availability
+      if (!avail) {
+        const res = await storeService.checkRoomAvailability({
+          storeId,
+          roomId,
+          checkIn,
+          checkOut,
+          guests,
+          roomsGuests: cleanRoomsGuests
+        })
+        if (!res?.available) {
+          setAvailability(null)
+          const reason = res?.reason || 'Room not available for selected dates'
+          throw new Error(reason)
         }
-      })() : { perNight: Number(room.price) || 0, nights, payable: (Number(room.price) || 0) * nights }
+        setAvailability(res)
+        avail = res
+      }
+
+      // Build totals with non-null fields regardless of availability
+      const totals = (() => {
+        const basePerNight = avail?.base != null ? Number(avail.base) : (Number(room.price) || 0)
+        const nightsLocal = avail?.nights != null ? Number(avail.nights) : nights
+        const mattressFeePerNight = Number(avail?.mattressFeePerNight || 0)
+        const extraMattressCount = Number(avail?.extraMattressCount || 0)
+        const mattressFee = (avail?.extraMattressAllowed ? extraMattressCount * mattressFeePerNight * nightsLocal : 0)
+        const baseSubtotal = avail?.subtotal != null ? Number(avail.subtotal) : (basePerNight * nightsLocal)
+        const adjustedSubtotal = Math.max(0, baseSubtotal - mattressFee)
+        const taxes = Math.round(adjustedSubtotal * 0.10)
+        const fees = Math.round(adjustedSubtotal * 0.05)
+        const payable = adjustedSubtotal + taxes + fees
+        return {
+          perNight: basePerNight,
+          nights: nightsLocal,
+          subtotal: adjustedSubtotal,
+          taxes,
+          fees,
+          payable
+        }
+      })()
+
+      const storeIdNum = Number(storeId)
+      const roomIdNum = Number(room?.id)
       const payload = {
         type: 'room_booking',
-        store: { id: storeId, name: store.name },
-        room: { id: room.id, name: room.name, price: Number(room.price) || 0 },
+        currency: 'INR',
+        store: { id: Number.isFinite(storeIdNum) ? storeIdNum : storeId, name: store.name },
+        room: { id: Number.isFinite(roomIdNum) ? roomIdNum : room.id, name: room.name, price: Number(room.price) || 0 },
         booking: {
           checkIn,
           checkOut,
           guests,
           nights,
-          rooms: availability?.rooms || 1,
-          perRoomMax: availability?.perRoomMax || 3,
-          extraMattressAllowed: !!availability?.extraMattressAllowed,
-          extraMattressCount: availability?.extraMattressCount || 0,
-          mattressFeePerNight: availability?.mattressFeePerNight || 0,
-          roomsGuests
+          rooms: Array.isArray(cleanRoomsGuests) ? cleanRoomsGuests.length : 1,
+          perRoomMax: avail?.perRoomMax != null ? Number(avail.perRoomMax) : 3,
+          extraMattressAllowed: !!avail?.extraMattressAllowed,
+          extraMattressCount: Number(avail?.extraMattressCount || 0),
+          mattressFeePerNight: Number(avail?.mattressFeePerNight || 0),
+          roomsGuests: cleanRoomsGuests
         },
-        guest: { name, phone },
-        notes,
+        guest: { name: String(name || '').trim(), phone: String(phone || '').trim() },
+        notes: String(notes || ''),
         totals
       }
+      console.info('Checkout payload', payload)
       const data = await orderService.checkout(payload)
       const orderId = data?.order?.id
       startTransition(() => {
         navigate(`/bookings/${orderId || 'latest'}`)
       })
     } catch (err) {
-      const msg = err?.response?.data?.message || 'Booking failed. Please try again.'
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Booking failed. Please try again.'
       setError(msg)
       console.error('Booking error:', err)
     } finally {
       setLoading(false)
     }
   }
+
 
   const handleCheckAvailability = async () => {
     setError('')

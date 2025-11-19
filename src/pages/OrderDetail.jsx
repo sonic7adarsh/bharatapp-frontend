@@ -19,15 +19,18 @@ export default function OrderDetail() {
       setLoading(true)
       setError('')
       try {
-        const data = await orderService.getOrders()
-        const orders = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
         let found = null
-        if (orderId === 'latest' && orders.length > 0) {
-          found = orders[0]
+        if (orderId === 'latest') {
+          const data = await orderService.getOrders()
+          const orders = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
+          if (orders.length > 0) found = orders[0]
         } else {
-          found = orders.find(o => String(o.id || '').toLowerCase() === String(orderId).toLowerCase())
+          found = await orderService.getOrderById(orderId)
+          // Fallback: some deployments may use reference lookup, try list-filter
           if (!found) {
-            found = orders.find(o => String(o.reference || '').toLowerCase() === String(orderId).toLowerCase())
+            const data = await orderService.getOrders()
+            const orders = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
+            found = orders.find(o => String(o.reference || '').toLowerCase() === String(orderId).toLowerCase()) || null
           }
         }
         if (!active) return
@@ -219,6 +222,11 @@ export default function OrderDetail() {
               <button onClick={handleReorder} className="px-3 py-2 rounded-md border hover:bg-gray-50">Reorder</button>
             </PressScale>
           </div>
+          {status === 'cancelled' && order.cancellationReason && (
+            <div className="mt-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md">
+              Cancelled: {String(order.cancellationReason)}
+            </div>
+          )}
         </div>
       )}
     </PageFade>

@@ -115,7 +115,17 @@ export default function Cart() {
               </div>
 
               <div className="mt-4 flex items-center justify-between">
-                <button onClick={clearCart} className="text-gray-600 hover:text-gray-800">Clear Cart</button>
+                <PressScale>
+                  <button
+                    onClick={clearCart}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 transition"
+                    aria-label="Clear cart"
+                    title="Clear Cart"
+                  >
+                    <span>🧹</span>
+                    <span className="font-medium">Clear Cart</span>
+                  </button>
+                </PressScale>
                 <PressScale className="inline-block">
                   <Link to="/checkout/options" className="btn-primary">Checkout</Link>
                 </PressScale>

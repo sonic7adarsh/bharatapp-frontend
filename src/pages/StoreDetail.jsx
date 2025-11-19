@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import storeService from '../services/storeService'
-import { STORES } from '../data/stores'
 import useCart from '../context/CartContext'
 import QuickViewModal from '../components/QuickViewModal'
 import { SkeletonStoreHeader, SkeletonProductCard } from '../components/Skeletons'
@@ -72,13 +71,6 @@ export default function StoreDetail() {
         } else {
           setStoreError('Failed to load store details. Please try again later.')
         }
-        
-        // Fallback to local data if available
-        const localStore = STORES.find(s => s.id === id)
-        if (localStore) {
-          setStore(localStore)
-          setProducts(localStore.products || [])
-        }
       } finally {
         setLoading(false)
       }
@@ -146,11 +138,11 @@ export default function StoreDetail() {
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <div className="flex flex-col md:flex-row md:justify-between md:items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{store.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{store?.name || 'Store'}</h1>
             <div className="mt-2 flex items-center gap-2">
-              {store.category && (
+              {store?.category && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-medium">
-                  {store.category}
+                  {store?.category}
                 </span>
               )}
               {(store.area || store.city) && (
@@ -160,12 +152,24 @@ export default function StoreDetail() {
               )}
             </div>
             <div className="mt-2">
-              <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store.rating !== 'undefined' ? store.rating : 4.5).toFixed(1)}</span>
+              <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store?.rating !== 'undefined' ? store?.rating : 4.5).toFixed(1)}</span>
             </div>
             <p className="mt-3 text-gray-700">
-              {store.address || store.area || 'Location information not available'}
+              {store?.address || store?.area || 'Location information not available'}
             </p>
-            <StoreOpenBadge hours={store.hours} />
+            <StoreOpenBadge hours={store?.hours} />
+            {(() => {
+              const isClosed = Boolean(store?.orderingDisabled) || String(store?.status || '').toLowerCase() === 'closed' || Boolean(store?.closed)
+              if (!isClosed) return null
+              const until = store?.closedUntil ? new Date(store.closedUntil) : null
+              const reason = store?.closedReason
+              return (
+                <div className="mt-3 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded" role="status" aria-live="polite">
+                  <div className="font-medium">Store is currently closed</div>
+                  <div className="text-sm">{reason ? `Reason: ${reason}. ` : ''}{until ? `Reopens by ${until.toLocaleString()}.` : ''}</div>
+                </div>
+              )
+            })()}
           </div>
 
           <div className="mt-4 md:mt-0">
@@ -236,7 +240,7 @@ export default function StoreDetail() {
         const start = new Date(now); start.setHours(oh, om, 0, 0)
         const end = new Date(now); end.setHours(ch, cm, 0, 0)
         return now >= start && now <= end
-      })()} storeCategory={store?.category} storeId={id} />
+      })()} storeCategory={store?.category} storeId={id} storeClosed={Boolean(store?.orderingDisabled) || String(store?.status || '').toLowerCase() === 'closed' || Boolean(store?.closed)} />
     </PageFade>
   )
 }
@@ -245,8 +249,24 @@ function ProductCard({ product, onQuick, storeId, storeCategory }) {
   const [avail, setAvail] = useState({ status: 'unknown', reason: '' })
   const isHospitality = () => {
     const c = String(storeCategory || '').toLowerCase()
-    return c.includes('hotel') || c.includes('hospitality') || c.includes('residency')
+    const pc = String(product?.category || '').toLowerCase()
+    return c.includes('hotel') || c.includes('hospitality') || c.includes('residency') || pc === 'room' || pc.includes('room')
   }
+
+  // Normalize product image across possible backend schemas
+  const getProductImage = (p) => {
+    if (!p) return ''
+    const direct = p.image || p.imageUrl || p.thumbnail || p.thumbUrl || p.photoUrl || p.picture || p.imgUrl
+    if (direct) return direct
+    const fromImages = Array.isArray(p.images) ? (typeof p.images[0] === 'string' ? p.images[0] : (p.images[0]?.url || '')) : ''
+    if (fromImages) return fromImages
+    const fromMedia = Array.isArray(p.media) ? (typeof p.media[0] === 'string' ? p.media[0] : (p.media[0]?.url || '')) : ''
+    if (fromMedia) return fromMedia
+    // Local/platform fallback stored as data URL
+    const dataUrl = p.imageDataUrl || p.image_data_url || ''
+    return dataUrl || ''
+  }
+  const imageSrc = getProductImage(product)
   const prefetchBooking = () => { import('../pages/RoomBooking') }
   const checkQuickAvailability = async () => {
     if (!isHospitality() || avail.status !== 'unknown') return
@@ -269,9 +289,9 @@ function ProductCard({ product, onQuick, storeId, storeCategory }) {
   }
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col h-full" onMouseEnter={checkQuickAvailability}>
-      {product.image && (
+      {imageSrc ? (
         <img
-          src={product.image}
+          src={imageSrc}
           alt={product.name}
           loading="lazy"
           decoding="async"
@@ -282,6 +302,14 @@ function ProductCard({ product, onQuick, storeId, storeCategory }) {
           className="w-full h-40 md:h-48 object-cover rounded-md mb-3 cursor-pointer"
           onClick={onQuick}
         />
+      ) : (
+        <div
+          className="w-full h-40 md:h-48 rounded-md mb-3 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400 cursor-pointer"
+          onClick={onQuick}
+          aria-label="No image available"
+        >
+          <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Z"/><path d="M21 15l-5-5-4 4-2-2-5 5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="8" r="2"/></svg>
+        </div>
       )}
       <h3 className="font-semibold text-lg cursor-pointer" onClick={onQuick}>{product.name}</h3>
       {/* Minimal card: show a single-line description only */}

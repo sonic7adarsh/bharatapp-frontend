@@ -1,6 +1,4 @@
 import api from '../lib/axios'
-import { STORES } from '../data/stores'
-import { generateProducts } from '../lib/mock'
 
 // Lightweight in-memory caches with TTL to enable hover prefetch
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
@@ -37,19 +35,17 @@ function setWithTs(cache, key, data, maxEntries = undefined) {
 
 const storeService = {
   async getStores(params = undefined, config = undefined) {
-    // Try /api first, then fallback to plain route and versioned route
     try {
       const tryApi = await api.get('/api/stores', config ?? (params ? { params } : undefined))
-      if (Array.isArray(tryApi?.data)) return tryApi.data
-    } catch {}
-    // Local fallback using sample stores
-    const search = params?.search ? String(params.search).toLowerCase() : ''
-    const category = params?.category ? String(params.category).toLowerCase() : ''
-    return STORES.filter(s => {
-      const matchName = search ? s.name.toLowerCase().includes(search) : true
-      const matchCat = category ? (s.category || '').toLowerCase() === category : true
-      return matchName && matchCat
-    })
+      return Array.isArray(tryApi?.data) ? tryApi.data : []
+    } catch (e) {
+      // Ignore aborted/canceled requests quietly (common during route changes/HMR)
+      if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') {
+        return []
+      }
+      console.error('getStores failed:', e)
+      return []
+    }
   },
   async getStore(id, config = undefined) {
     // Serve from cache if available and fresh
@@ -61,50 +57,55 @@ const storeService = {
         setWithTs(storeCache, id, tryApi.data, MAX_STORE_CACHE_ENTRIES)
         return tryApi.data
       }
-    } catch {}
-    const localStore = STORES.find(s => s.id === id)
-    if (localStore) {
-      setWithTs(storeCache, id, localStore, MAX_STORE_CACHE_ENTRIES)
-      return localStore
+    } catch (e) {
+      // Suppress noisy logs for aborted requests (common during route changes/HMR)
+      if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') {
+        // Propagate so callers can short-circuit without error UI
+        throw e
+      }
+      console.error('getStore failed:', e)
+      // Throw to allow page-level catch to show not found
+      throw e
     }
-    // Throw to allow page-level catch to show not found
-    throw new Error('Store not found')
   },
   async getProductsByStore(storeId, config = undefined) {
     // Serve from cache if available and fresh
     const cached = getWithTtl(productCache, storeId)
     if (cached) return cached
+    const extractList = (data) => {
+      if (Array.isArray(data)) return data
+      if (Array.isArray(data?.items)) return data.items
+      if (Array.isArray(data?.products)) return data.products
+      if (Array.isArray(data?.list)) return data.list
+      if (Array.isArray(data?.data)) return data.data
+      if (Array.isArray(data?.records)) return data.records
+      return []
+    }
     // Supports both query-style and nested route depending on backend
     try {
       const byQuery = await api.get(`/api/products`, { params: { storeId }, ...(config || {}) })
-      if (Array.isArray(byQuery?.data)) {
-        setWithTs(productCache, storeId, byQuery.data, MAX_PRODUCT_CACHE_ENTRIES)
-        return byQuery.data
+      const list = extractList(byQuery?.data)
+      if (Array.isArray(list)) {
+        setWithTs(productCache, storeId, list, MAX_PRODUCT_CACHE_ENTRIES)
+        return list
       }
-    } catch {}
+    } catch (e) {
+      // continue to nested path
+      console.warn('getProductsByStore query path failed, trying nested:', e)
+    }
     try {
       const nested = await api.get(`/api/stores/${storeId}/products`, config)
-      if (Array.isArray(nested?.data)) {
-        setWithTs(productCache, storeId, nested.data, MAX_PRODUCT_CACHE_ENTRIES)
-        return nested.data
+      const list = extractList(nested?.data)
+      if (Array.isArray(list)) {
+        setWithTs(productCache, storeId, list, MAX_PRODUCT_CACHE_ENTRIES)
+        return list
       }
-    } catch {}
-    // Local fallback using sample store products or generated ones
-    const localStore = STORES.find(s => s.id === storeId)
-    if (localStore && Array.isArray(localStore.products)) {
-      const items = localStore.products.map(p => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        description: `${p.name} from ${localStore.name}`,
-        image: `https://picsum.photos/seed/${encodeURIComponent(p.name)}/300/200`
-      }))
-      setWithTs(productCache, storeId, items, MAX_PRODUCT_CACHE_ENTRIES)
-      return items
+    } catch (e) {
+      console.error('getProductsByStore failed:', e)
+      return []
     }
-    const generated = generateProducts(6)
-    setWithTs(productCache, storeId, generated, MAX_PRODUCT_CACHE_ENTRIES)
-    return generated
+    // If both paths returned non-array payloads, treat as empty list
+    return []
   },
   // Prefetch helpers
   getCachedStore(id) { return getWithTtl(storeCache, id) },
@@ -123,105 +124,19 @@ const storeService = {
     }
   },
   async checkRoomAvailability({ storeId, roomId, checkIn, checkOut, guests = 1, roomsGuests = undefined }) {
-    // Try backend if available
     try {
       const res = await api.get('/api/availability', {
-        params: { storeId, roomId, checkIn, checkOut, guests }
+        params: { storeId, roomId, checkIn, checkOut, guests, roomsGuests }
       })
-      if (res?.data) return res.data
-    } catch {}
-    // Local mock: compute nights and apply simple rules
-    const start = new Date(checkIn)
-    const end = new Date(checkOut)
-    const oneDay = 24 * 60 * 60 * 1000
-    const nights = Math.max(0, Math.round((end - start) / oneDay))
-    const store = STORES.find(s => s.id === storeId)
-    const room = store?.products?.find(p => p.id === roomId)
-    const base = room?.price || 1000
-    // Simple constraints: max stay 14 nights, min 1 night
-    if (nights < 1) return { available: false, reason: 'Invalid date range' }
-    if (nights > 14) return { available: false, reason: 'Maximum 14 nights allowed' }
-    // Hospitality-specific capacity: base capacity 2, optional extra mattress to allow up to 3
-    const roomName = String(room?.name || '').toLowerCase()
-    const extraMattressAllowed = /deluxe|suite|business|club|premier/.test(roomName) || roomName.includes('family')
-    // Business rule: max 3 guests per room universally; 3rd guest implies extra mattress when allowed
-    const perRoomMax = 3
-    let roomsRequired = Math.ceil(Math.max(1, guests) / perRoomMax)
-    let extraMattressCount = 0
-    if (Array.isArray(roomsGuests) && roomsGuests.length > 0) {
-      roomsRequired = roomsGuests.length
-      // Validate each room capacity
-      for (const g of roomsGuests) {
-        if (g < 1 || g > perRoomMax) {
-          return { available: false, reason: 'Invalid room allocation: max ' + perRoomMax + ' guests per room' }
-        }
-      }
-      // Count an extra mattress for each room with 3 guests, only if allowed; capacity remains 3 regardless
-      extraMattressCount = extraMattressAllowed ? roomsGuests.filter(g => g === 3).length : 0
-    } else {
-      // Approximate: base capacity 2 per room; any 3rd guest in a room implies extra mattress
-      const threeOccupancyRooms = Math.max(0, guests - roomsRequired * 2)
-      extraMattressCount = extraMattressAllowed ? Math.min(roomsRequired, threeOccupancyRooms) : 0
-      // Reject if any single room would exceed 3 guests
-      if (guests > 0 && Math.ceil(guests / roomsRequired) > 3) {
-        return { available: false, reason: 'Not more than 3 guests allowed per room' }
-      }
-    }
-    // Weekend surcharge mock
-    const isWeekend = [0, 6].includes(start.getDay()) || [0, 6].includes(end.getDay())
-    const surcharge = isWeekend ? 0.1 : 0
-    const mattressFeePerNight = extraMattressAllowed ? Math.round(300) : 0
-    const baseRoomsSubtotal = base * roomsRequired * nights * (1 + surcharge)
-    const mattressSubtotal = extraMattressCount * mattressFeePerNight * nights
-    const subtotal = baseRoomsSubtotal + mattressSubtotal
-    const taxes = subtotal * 0.1
-    const fees = subtotal * 0.05
-    const total = Math.round(subtotal + taxes + fees)
-    return {
-      available: true,
-      nights,
-      base,
-      surchargeRate: surcharge,
-      rooms: roomsRequired,
-      perRoomMax,
-      extraMattressAllowed,
-      extraMattressCount,
-      mattressFeePerNight,
-      roomsGuests: Array.isArray(roomsGuests) ? roomsGuests : undefined,
-      subtotal: Math.round(subtotal),
-      taxes: Math.round(taxes),
-      fees: Math.round(fees),
-      total
+      return res?.data || { available: false }
+    } catch (e) {
+      console.error('checkRoomAvailability failed:', e)
+      return { available: false, reason: 'availability_unavailable' }
     }
   },
   async createStore(payload) {
-    try {
-      const res = await api.post('/api/stores', payload, { showSuccessToast: true, successMessage: 'Store onboarding request sent.' })
-      return res.data
-    } catch (e) {
-      // Local mock success
-      const mockId = `s_${Date.now()}`
-      const mockStore = {
-        id: mockId,
-        name: payload?.name || `New Store ${mockId}`,
-        area: payload?.area || 'Unknown Area',
-        category: payload?.category || 'Grocery',
-      }
-      try {
-        const saved = localStorage.getItem('stores')
-        const stores = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
-        stores.push(mockStore)
-        localStorage.setItem('stores', JSON.stringify(stores))
-        // Elevate current user to seller in mock mode after onboarding
-        const rawUser = localStorage.getItem('user')
-        if (rawUser) {
-          const u = JSON.parse(rawUser)
-          const next = { ...u, role: 'seller' }
-          localStorage.setItem('user', JSON.stringify(next))
-        }
-      } catch {}
-      return { success: true, store: mockStore }
-    }
+    const res = await api.post('/api/stores', payload, { showSuccessToast: true, successMessage: 'Store onboarding request sent.' })
+    return res.data
   }
 }
 

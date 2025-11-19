@@ -1,10 +1,12 @@
 import React, { createContext, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axios from '../lib/axios'
 import authService from '../services/authService'
 
 export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
+  const navigate = useNavigate()
   const [token, setToken] = useState(localStorage.getItem('token') || null)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -95,11 +97,18 @@ export function AuthProvider({ children }) {
     return { success: true, user: userData }
   }
 
-  // Logout function that clears token and user data
-  const logout = () => {
+  // Logout function that clears token and user data and navigates to login
+  const logout = (opts = {}) => {
     setToken(null)
     setUser(null)
-    localStorage.removeItem('token')
+    try {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('otpSession')
+    } catch {}
+    try { window.__announce?.('Logged out. Please login again.', 'polite') } catch {}
+    const to = opts?.to || '/mobile-login'
+    navigate(to, { replace: true })
   }
 
   // Register function for new users

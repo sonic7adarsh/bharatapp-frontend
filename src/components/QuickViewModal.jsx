@@ -4,7 +4,7 @@ import useCart from '../context/CartContext'
 import { ModalSlideUp } from '../motion/presets'
 import { useAnnouncer } from '../context/AnnouncerContext'
 
-export default function QuickViewModal({ isOpen, onClose, product, storeOpen = true, storeCategory, storeId }) {
+export default function QuickViewModal({ isOpen, onClose, product, storeOpen = true, storeCategory, storeId, storeClosed = false }) {
   const { addItem, items, updateItemQuantity, removeItem } = useCart()
   const navigate = useNavigate()
   const [qty, setQty] = useState(1)
@@ -28,7 +28,7 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
   useEffect(() => {
     if (!isOpen) return
     const name = product?.name || 'product'
-    const closedNote = !storeOpen ? ' Store is currently closed.' : ''
+    const closedNote = storeClosed ? ' Store is closed for ordering.' : (!storeOpen ? ' Store is currently closed.' : '')
     announce(`Quick view opened for ${name}.${closedNote}`, 'polite')
   }, [isOpen])
 
@@ -95,7 +95,7 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
     const name = suffixParts.length > 0 ? `${product.name} (${suffixParts.join(', ')})` : product.name
     let id = `${product.id}__v:${variantKey}__a:${[...addonKeys].sort().join(',')}`
     // Tag pharmacy items so Checkout can require prescription only when needed
-    addItem({ id, name, price: unitPrice, requiresPrescription: isPharmacy }, qty)
+    addItem({ id, name, price: unitPrice, requiresPrescription: isPharmacy, storeId }, qty)
     announce(`Added to cart: ${name}, quantity ${qty}.`, 'polite')
     onClose?.()
   }
@@ -110,6 +110,11 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
   return (
     <ModalSlideUp isOpen={isOpen} onClose={onClose} ariaLabel={`Quick view for ${product?.name || 'product'}`}>
       <div className="p-4">
+        {storeClosed && (
+          <div className="mb-3 bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded">
+            Store is closed for new orders. Please check back later.
+          </div>
+        )}
         {!storeOpen && (
           <div className="mb-3 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded">
             Store is currently closed. Orders will be scheduled for next opening.
@@ -121,9 +126,17 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
           </div>
         )}
         <div className="flex items-start gap-4">
-          {product.image && (
-            <img src={product.image} alt={product.name} loading="lazy" decoding="async" width={96} height={96} className="w-24 h-24 object-cover rounded-md" />
-          )}
+          {(() => {
+            const src = (product?.image || product?.imageUrl || product?.thumbnail || product?.thumbUrl || product?.photoUrl || product?.picture || product?.imgUrl || (Array.isArray(product?.images) ? (typeof product.images[0] === 'string' ? product.images[0] : (product.images[0]?.url || '')) : '') || (Array.isArray(product?.media) ? (typeof product.media[0] === 'string' ? product.media[0] : (product.media[0]?.url || '')) : '') || product?.imageDataUrl || product?.image_data_url || '')
+            if (src) {
+              return <img src={src} alt={product.name} loading="lazy" decoding="async" width={96} height={96} className="w-24 h-24 object-cover rounded-md" />
+            }
+            return (
+              <div className="w-24 h-24 rounded-md bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400" aria-label="No image available">
+                <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Z"/><path d="M21 15l-5-5-4 4-2-2-5 5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="8" r="2"/></svg>
+              </div>
+            )
+          })()}
           <div className="flex-1">
             <div className="font-semibold text-lg">{product.name}</div>
             <div className="text-gray-600 text-sm mt-1 line-clamp-3">{product.description || 'No description available'}</div>
@@ -206,7 +219,7 @@ export default function QuickViewModal({ isOpen, onClose, product, storeOpen = t
                 <span className="px-3 py-1 font-semibold">{qty}</span>
                 <button onClick={inc} className="px-3 py-1 hover:bg-orange-100 rounded-r-md" aria-label="Increase quantity">+</button>
               </div>
-              <button onClick={addToCart} disabled={qty <= 0} className="btn-primary">Add to Cart</button>
+              <button onClick={addToCart} disabled={qty <= 0 || storeClosed} className="btn-primary">Add to Cart</button>
             </>
           ) : (
             <div className="text-sm text-gray-600">

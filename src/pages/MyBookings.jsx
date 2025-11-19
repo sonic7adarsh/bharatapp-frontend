@@ -4,12 +4,16 @@ import orderService from '../services/orderService'
 import useAuth from '../hooks/useAuth'
 import { PageFade, PressScale } from '../motion/presets'
 import { useAnnouncer } from '../context/AnnouncerContext'
+import eventService from '../services/eventService'
 
 export default function MyBookings() {
   const { user, loading: authLoading } = useAuth()
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [total, setTotal] = useState(null)
   const navigate = useNavigate()
   const { announce } = useAnnouncer()
 
@@ -18,8 +22,22 @@ export default function MyBookings() {
       try {
         setLoading(true)
         announce('Loading bookings…', 'polite')
-        const data = await orderService.getBookings()
-        const list = Array.isArray(data) ? data : Array.isArray(data?.bookings) ? data.bookings : []
+        try { eventService.track('page_view', { page: '/bookings', title: 'MyBookings' }) } catch {}
+        try { eventService.track('bookings_fetch_start', { source: 'my_bookings', userId: user?.id, page, pageSize }) } catch {}
+        const data = await orderService.getBookings({ page, limit: pageSize })
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.bookings)
+              ? data.bookings
+              : []
+        const t = (typeof data?.total === 'number'
+          ? data.total
+          : typeof data?.count === 'number'
+            ? data.count
+            : (data?.pagination?.total ?? null))
+        setTotal(typeof t === 'number' ? t : null)
         // Normalize data structure
         const normalized = list.map(b => ({
           id: b.id || b.reference || String(Date.now()),
@@ -34,17 +52,29 @@ export default function MyBookings() {
         }))
         setBookings(normalized)
         setError('')
-        announce(normalized.length > 0 ? `Loaded ${normalized.length} bookings.` : 'No room bookings yet.', 'polite')
+        const pageText = typeof total === 'number' ? `Page ${page} of ${Math.max(1, Math.ceil(total / pageSize))}` : `Page ${page}`
+        announce(normalized.length > 0 ? `Loaded ${normalized.length} bookings. ${pageText}` : 'No room bookings yet.', 'polite')
+        try { eventService.track('bookings_fetch_success', { source: 'my_bookings', count: normalized.length, total, page, pageSize }) } catch {}
+        if (normalized.length === 0) {
+          try { eventService.track('bookings_empty', { source: 'my_bookings' }) } catch {}
+        }
       } catch (err) {
         console.error('Failed to fetch bookings:', err)
         setError(err?.response?.data?.message || 'Failed to load bookings. Please try again later.')
         announce('Failed to load bookings. Please try again later.', 'assertive')
+        try {
+          eventService.track('bookings_fetch_error', {
+            source: 'my_bookings',
+            message: err?.response?.data?.message || err?.message || 'Unknown error',
+            code: err?.response?.status
+          })
+        } catch {}
       } finally {
         setLoading(false)
       }
     }
     fetchBookings()
-  }, [user?.id])
+  }, [user?.id, page, pageSize])
 
   if (authLoading || loading) {
     return (
@@ -83,6 +113,7 @@ export default function MyBookings() {
           </div>
         </section>
       ) : (
+        <>
         <ul role="list" aria-labelledby="bookings-heading" className="space-y-4">
           {bookings.map((b, idx) => {
             const dateStr = (() => {
@@ -99,7 +130,7 @@ export default function MyBookings() {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-semibold">
-                      <Link to={`/bookings/${encodeURIComponent(b.id || b.reference || '')}`} id={titleId} className="text-indigo-600 hover:text-indigo-800" aria-label={`Booking ${b.reference || b.id || ''} on ${dateStr}`}>
+                      <Link to={`/bookings/${encodeURIComponent(b.id || b.reference || '')}`} id={titleId} className="text-indigo-600 hover:text-indigo-800" aria-label={`Booking ${b.reference || b.id || ''} on ${dateStr}`} onClick={() => { try { eventService.track('booking_click', { id: b.id || b.reference, source: 'my_bookings_title' }) } catch {} }}>
                         Booking {b.reference || b.id || ''}
                       </Link>
                     </div>
@@ -120,13 +151,15 @@ export default function MyBookings() {
                   <div className="text-sm text-gray-700">Booked on {dateStr}</div>
                   <div className="flex items-center gap-2">
                     <PressScale className="inline-block">
-                      <Link to={`/bookings/${encodeURIComponent(b.id || b.reference || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50">View Details</Link>
+                      <Link to={`/bookings/${encodeURIComponent(b.id || b.reference || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50" onClick={() => { try { eventService.track('booking_click', { id: b.id || b.reference, source: 'my_bookings_button' }) } catch {} }}>View Details</Link>
                     </PressScale>
+                    {(b.store?.id || b.storeId || b.room?.storeId) ? (
+                      <PressScale className="inline-block">
+                        <Link to={`/hotels/${encodeURIComponent(b.store?.id || b.storeId || b.room?.storeId)}`} className="px-3 py-2 rounded-md border hover:bg-gray-50" onClick={() => { try { eventService.track('nav_click', { target: `/hotels/${encodeURIComponent(b.store?.id || b.storeId || b.room?.storeId)}`, context: 'my_bookings' }) } catch {} }}>View Hotel</Link>
+                      </PressScale>
+                    ) : null}
                     <PressScale className="inline-block">
-                      <Link to={`/store/${encodeURIComponent(b.store?.id || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50">View Hotel</Link>
-                    </PressScale>
-                    <PressScale className="inline-block">
-                      <button onClick={() => navigate('/hotels')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Explore more</button>
+                      <button onClick={() => { try { eventService.track('nav_click', { target: '/hotels', context: 'my_bookings' }) } catch {} ; navigate('/hotels') }} className="px-3 py-2 rounded-md border hover:bg-gray-50">Explore more</button>
                     </PressScale>
                   </div>
                 </div>
@@ -134,6 +167,32 @@ export default function MyBookings() {
             )
           })}
         </ul>
+        {/* Pagination */}
+        <div className="flex items-center justify-between mt-6">
+          <div className="text-sm text-gray-600">Showing {bookings.length} result(s){typeof total === 'number' ? ` of ${total}` : ''}</div>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1.5 rounded border border-gray-300 disabled:opacity-50"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+            >Prev</button>
+            <div className="text-sm">Page {page}{typeof total === 'number' ? ` of ${Math.max(1, Math.ceil(total / pageSize))}` : ''}</div>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
+              className="px-2 py-1 border rounded"
+              aria-label="Items per page"
+            >
+              {[10,20,50,100].map(n => <option key={n} value={n}>{n}/page</option>)}
+            </select>
+            <button
+              className="px-3 py-1.5 rounded border border-gray-300 disabled:opacity-50"
+              onClick={() => setPage(page + 1)}
+              disabled={typeof total === 'number' ? page >= Math.max(1, Math.ceil(total / pageSize)) : bookings.length < pageSize}
+            >Next</button>
+          </div>
+        </div>
+        </>
       )}
     </PageFade>
   )

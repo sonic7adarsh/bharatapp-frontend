@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 import sellerService from '../services/sellerService'
 import productService from '../services/productService'
 import { PageFade, PressScale } from '../motion/presets'
+import { useI18n } from '../context/I18nContext'
 
 export default function SellerProducts() {
+  const { t } = useI18n() || { t: (k, f) => f }
   const [stores, setStores] = useState([])
   const [storeId, setStoreId] = useState('')
   const [products, setProducts] = useState([])
@@ -14,6 +16,18 @@ export default function SellerProducts() {
   const [draft, setDraft] = useState({ name: '', category: '', price: '' })
   const [categories, setCategories] = useState([])
   const [catLoading, setCatLoading] = useState(false)
+
+  // Bulk upload state
+  const [bulkFile, setBulkFile] = useState(null)
+  const [bulkMode, setBulkMode] = useState('upsert')
+  const [bulkDryRun, setBulkDryRun] = useState(false)
+  const [defaultCurrency, setDefaultCurrency] = useState('INR')
+  const [defaultTaxRate, setDefaultTaxRate] = useState('')
+  const [bulkUploading, setBulkUploading] = useState(false)
+  const [bulkJob, setBulkJob] = useState(null)
+  const [bulkStatus, setBulkStatus] = useState(null)
+  const [bulkErrors, setBulkErrors] = useState([])
+  const [bulkErrorMsg, setBulkErrorMsg] = useState('')
 
   useEffect(() => {
     let active = true
@@ -115,7 +129,7 @@ export default function SellerProducts() {
           <div className="text-sm text-gray-600 mt-1">Total: {totalProducts}</div>
         </div>
         <PressScale className="inline-block">
-          <Link to="/dashboard" className="px-3 py-2 rounded-md border hover:bg-gray-50">Back to Dashboard</Link>
+          <Link to="/dashboard" className="btn-primary text-sm">{t('nav.back_to_dashboard', 'Back to Dashboard')}</Link>
         </PressScale>
       </div>
 
@@ -130,6 +144,187 @@ export default function SellerProducts() {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Bulk CSV upload */}
+      <div className="mb-6 border rounded-lg p-4 bg-gray-50">
+        <h3 className="text-lg font-semibold mb-3">Bulk upload products (CSV)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium mb-1 block">CSV file</label>
+            <input type="file" accept=".csv,text/csv" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} className="w-full border rounded px-3 py-2 bg-white" />
+            <p className="text-xs text-gray-600 mt-1">Required columns: name, sku, price, stockQuantity</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">Mode</label>
+            <select value={bulkMode} onChange={(e) => setBulkMode(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
+              <option value="upsert">Upsert (default)</option>
+              <option value="create">Create only</option>
+              <option value="update">Update only</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="bulk-dryrun" type="checkbox" checked={bulkDryRun} onChange={(e) => setBulkDryRun(e.target.checked)} />
+            <label htmlFor="bulk-dryrun" className="text-sm">Dry run (validate only)</label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Default currency</label>
+              <input value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value)} className="w-full border rounded px-3 py-2 bg-white" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Default tax rate (%)</label>
+              <input type="number" value={defaultTaxRate} onChange={(e) => setDefaultTaxRate(e.target.value)} className="w-full border rounded px-3 py-2 bg-white" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <PressScale className="inline-block">
+            <button
+              disabled={!bulkFile || bulkUploading}
+              onClick={async () => {
+                if (!bulkFile) return
+                setBulkUploading(true)
+                setBulkErrorMsg('')
+                setBulkErrors([])
+                setBulkJob(null)
+                setBulkStatus(null)
+                try {
+                  // Prefer backend-driven S3 presign upload flow
+                  let key = ''
+                  try {
+                    const presign = await sellerService.presignBulkProductCsv({ fileName: bulkFile.name, contentType: 'text/csv', folder: 'bulk-products' })
+                    key = presign?.key || ''
+                    const headers = presign?.headers || { 'Content-Type': 'text/csv' }
+                    const method = presign?.method || 'PUT'
+                    const res = await fetch(presign?.uploadUrl, { method, headers, body: bulkFile })
+                    if (!res.ok) throw new Error('S3 upload failed')
+                  } catch (e) {
+                    // Fallback to direct multipart upload if presign fails
+                    const resp = await sellerService.bulkUploadProducts(bulkFile, {
+                      mode: bulkMode,
+                      dryRun: bulkDryRun,
+                      defaultCurrency: defaultCurrency || undefined,
+                      defaultTaxRate: defaultTaxRate !== '' ? Number(defaultTaxRate) : undefined
+                    })
+                    if (resp?.dryRun) {
+                      setBulkStatus({ status: 'dryRun', stats: { total: resp.totalRows, valid: resp.validRows, invalid: resp.invalidRows } })
+                      setBulkErrors(Array.isArray(resp?.errors) ? resp.errors : [])
+                    } else if (resp?.jobId) {
+                      setBulkJob(resp)
+                      let cancelled = false
+                      const poll = async () => {
+                        try {
+                          const s = await sellerService.getBulkUploadStatus(resp.jobId)
+                          setBulkStatus(s)
+                          if (s?.status === 'completed' || s?.status === 'failed') return
+                          if (!cancelled) setTimeout(poll, 2000)
+                        } catch (err) {
+                          if (!cancelled) setTimeout(poll, 3000)
+                        }
+                      }
+                      poll()
+                    }
+                    return
+                  }
+
+                  // Submit job by S3 key
+                  const resp = await sellerService.bulkUploadProductsByKey(key, {
+                    mode: bulkMode,
+                    dryRun: bulkDryRun,
+                    defaultCurrency: defaultCurrency || undefined,
+                    defaultTaxRate: defaultTaxRate !== '' ? Number(defaultTaxRate) : undefined
+                  })
+                  if (resp?.dryRun) {
+                    setBulkStatus({ status: 'dryRun', stats: { total: resp.totalRows, valid: resp.validRows, invalid: resp.invalidRows } })
+                    setBulkErrors(Array.isArray(resp?.errors) ? resp.errors : [])
+                  } else if (resp?.jobId) {
+                    setBulkJob(resp)
+                    let cancelled = false
+                    const poll = async () => {
+                      try {
+                        const s = await sellerService.getBulkUploadStatus(resp.jobId)
+                        setBulkStatus(s)
+                        if (s?.status === 'completed' || s?.status === 'failed') return
+                        if (!cancelled) setTimeout(poll, 2000)
+                      } catch (err) {
+                        if (!cancelled) setTimeout(poll, 3000)
+                      }
+                    }
+                    poll()
+                  }
+                } catch (e) {
+                  console.error('Bulk upload error:', e)
+                  setBulkErrorMsg('Bulk upload failed. Please check your CSV and try again.')
+                } finally {
+                  setBulkUploading(false)
+                }
+              }}
+              className={`px-3 py-2 rounded-md text-sm ${bulkUploading ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+            >
+              {bulkUploading ? 'Uploading…' : bulkDryRun ? 'Validate CSV' : 'Upload CSV'}
+            </button>
+          </PressScale>
+          <a href="/api/seller/products/bulk-upload/template" className="text-sm underline" target="_blank" rel="noreferrer">Download template CSV</a>
+          {bulkErrorMsg && <span className="text-sm text-red-600">{bulkErrorMsg}</span>}
+        </div>
+
+        {bulkStatus && (
+          <div className="mt-4 bg-white border rounded p-3">
+            <div className="text-sm text-gray-700">Status: {bulkStatus.status || 'n/a'}</div>
+            {bulkStatus?.stats && (
+              <div className="text-sm text-gray-700 mt-2">
+                <div>Total: {bulkStatus.stats.total}</div>
+                {typeof bulkStatus.stats.created === 'number' && <div>Created: {bulkStatus.stats.created}</div>}
+                {typeof bulkStatus.stats.updated === 'number' && <div>Updated: {bulkStatus.stats.updated}</div>}
+                {typeof bulkStatus.stats.unchanged === 'number' && <div>Unchanged: {bulkStatus.stats.unchanged}</div>}
+                {typeof bulkStatus.stats.invalid === 'number' && <div>Invalid: {bulkStatus.stats.invalid}</div>}
+              </div>
+            )}
+            <div className="mt-2">
+              <PressScale className="inline-block">
+                <button
+                  disabled={!bulkJob?.jobId}
+                  onClick={async () => {
+                    if (!bulkJob?.jobId) return
+                    const errs = await sellerService.getBulkUploadErrors(bulkJob.jobId)
+                    setBulkErrors(errs)
+                  }}
+                  className="px-3 py-1 rounded border text-sm hover:bg-gray-50"
+                >
+                  Fetch error report
+                </button>
+              </PressScale>
+            </div>
+            {bulkErrors?.length > 0 && (
+              <div className="mt-3">
+                <div className="text-sm font-medium mb-2">Errors ({bulkErrors.length})</div>
+                <div className="max-h-60 overflow-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="text-gray-500">
+                        <th className="px-2 py-1 text-left">Row</th>
+                        <th className="px-2 py-1 text-left">Column</th>
+                        <th className="px-2 py-1 text-left">Code</th>
+                        <th className="px-2 py-1 text-left">Message</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkErrors.map((e, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="px-2 py-1">{e.row}</td>
+                          <td className="px-2 py-1">{e.column || '-'}</td>
+                          <td className="px-2 py-1">{e.code}</td>
+                          <td className="px-2 py-1">{e.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (

@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import orderService from '../services/orderService'
 import { PageFade, PressScale } from '../motion/presets'
 import { toast } from 'react-toastify'
-import { STORES } from '../data/stores'
 import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function BookingDetail() {
@@ -20,15 +19,17 @@ export default function BookingDetail() {
       setLoading(true)
       setError('')
       try {
-        const data = await orderService.getBookings()
-        const bookings = Array.isArray(data) ? data : Array.isArray(data?.bookings) ? data.bookings : []
         let found = null
-        if (bookingId === 'latest' && bookings.length > 0) {
-          found = bookings[0]
+        if (bookingId === 'latest') {
+          const data = await orderService.getBookings()
+          const bookings = Array.isArray(data) ? data : Array.isArray(data?.bookings) ? data.bookings : []
+          if (bookings.length > 0) found = bookings[0]
         } else {
-          found = bookings.find(b => String(b.id || '').toLowerCase() === String(bookingId).toLowerCase())
+          found = await orderService.getBookingById(bookingId)
           if (!found) {
-            found = bookings.find(b => String(b.reference || '').toLowerCase() === String(bookingId).toLowerCase())
+            const data = await orderService.getBookings()
+            const bookings = Array.isArray(data) ? data : Array.isArray(data?.bookings) ? data.bookings : []
+            found = bookings.find(b => String(b.reference || '').toLowerCase() === String(bookingId).toLowerCase()) || null
           }
         }
         if (!active) return
@@ -65,20 +66,9 @@ export default function BookingDetail() {
     }
   }
 
-  // Enrich with store/room info for seamless presentation
-  const storeInfo = useMemo(() => {
-    const id = booking?.store?.id
-    if (!id) return null
-    return STORES.find(s => String(s.id) === String(id)) || null
-  }, [booking])
-
-  const roomInfo = useMemo(() => {
-    const sid = booking?.store?.id
-    const rid = booking?.room?.id
-    if (!sid || !rid) return null
-    const s = STORES.find(st => String(st.id) === String(sid))
-    return (s?.products || []).find(p => String(p.id) === String(rid)) || null
-  }, [booking])
+  // Rely on backend-provided store/room metadata
+  const storeInfo = booking?.store || null
+  const roomInfo = booking?.room || null
 
   useEffect(() => {
     if (!loading && booking) {
@@ -92,6 +82,30 @@ export default function BookingDetail() {
     const num = Number(v || 0)
     return '₹' + num.toLocaleString('en-IN', { maximumFractionDigits: 0 })
   }
+
+  // Robust per-night fallback so price never shows 0
+  const perNightDisplay = useMemo(() => {
+    try {
+      const tpn = Number(booking?.totals?.perNight)
+      if (Number.isFinite(tpn) && tpn > 0) return tpn
+      const rp = Number(booking?.room?.price)
+      if (Number.isFinite(rp) && rp > 0) return rp
+      const nights = Number(booking?.totals?.nights || booking?.booking?.nights)
+      const sub = Number(booking?.totals?.subtotal)
+      if (Number.isFinite(sub) && sub > 0 && Number.isFinite(nights) && nights > 0) {
+        return Math.round(sub / nights)
+      }
+      const pay = Number(booking?.totals?.payable)
+      if (Number.isFinite(pay) && pay > 0 && Number.isFinite(nights) && nights > 0) {
+        return Math.round(pay / nights)
+      }
+      const tot = Number(booking?.total)
+      if (Number.isFinite(tot) && tot > 0 && Number.isFinite(nights) && nights > 0) {
+        return Math.round(tot / nights)
+      }
+      return 0
+    } catch { return 0 }
+  }, [booking])
 
   if (loading) {
     return (
@@ -115,7 +129,7 @@ export default function BookingDetail() {
           )}
           <div>
             <h2 className="text-2xl font-bold">{booking?.room?.name || 'Room Booking'}</h2>
-            <div className="mt-1 text-sm text-gray-600">{storeInfo?.name || booking.store?.name || 'Hotel'}{storeInfo?.area ? ` • ${storeInfo.area}` : (booking.store?.area ? ` • ${booking.store.area}` : '')}</div>
+            <div className="mt-1 text-sm text-gray-600">{storeInfo?.name || 'Hotel'}{storeInfo?.area ? ` • ${storeInfo.area}` : ''}</div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">🔖 {booking?.reference || booking?.id || ''}</span>
               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-gray-700 ${String(booking?.status).toLowerCase() === 'cancelled' ? 'bg-red-100' : 'bg-green-100'}`}>{String(booking?.status || 'confirmed').toUpperCase()}</span>
@@ -156,6 +170,7 @@ export default function BookingDetail() {
                   <div className="text-sm text-gray-700">Check-out</div>
                   <div className="font-medium">{booking.booking?.checkOut}</div>
                 </div>
+                {/* Guests count shown in Stay Details as requested */}
                 <div>
                   <div className="text-sm text-gray-700">Guests</div>
                   <div className="font-medium">{Number(booking.booking?.guests || 1)}</div>
@@ -168,45 +183,10 @@ export default function BookingDetail() {
                 )}
               </div>
 
-              {Array.isArray(booking.booking?.roomsGuests) && booking.booking.roomsGuests.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-sm font-medium mb-1">Room Allocation</div>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {booking.booking.roomsGuests.map((g, i) => (
-                      <li key={i} className="flex justify-between">
-                        <span>Room {i + 1}</span>
-                        <span className="font-semibold">{g} guest{g > 1 ? 's' : ''}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="mt-4">
-                <div className="text-sm text-gray-700">Guest</div>
-                <div className="font-medium">{booking.guest?.name || '—'}{booking.guest?.phone ? ` • ${booking.guest.phone}` : ''}</div>
-              </div>
-
-              {booking.notes ? (
-                <div className="mt-4">
-                  <div className="text-sm text-gray-700">Special Requests</div>
-                  <div className="font-medium">{booking.notes}</div>
-                </div>
-              ) : null}
+              {/* Content after Nights removed as requested */}
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h3 className="font-semibold mb-3">Hotel</h3>
-              <div className="text-sm text-gray-700">{storeInfo?.name || booking.store?.name || 'Hotel'}{storeInfo?.area ? ` • ${storeInfo.area}` : (booking.store?.area ? ` • ${booking.store.area}` : '')}</div>
-              <div className="mt-3 flex items-center gap-2">
-                <PressScale className="inline-block">
-                  <Link to={`/store/${encodeURIComponent(booking.store?.id || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50">View Hotel</Link>
-                </PressScale>
-                <PressScale className="inline-block">
-                  <button onClick={() => navigate('/hotels')} className="px-3 py-2 rounded-md border hover:bg-gray-50">Explore more</button>
-                </PressScale>
-              </div>
-            </div>
+            {/* Hotel tile removed as per request */}
           </div>
 
           {/* Right: Summary */}
@@ -224,7 +204,7 @@ export default function BookingDetail() {
                 ) : null}
               </div>
               <div className="mt-4 space-y-2">
-                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">{fmtInr(booking.totals?.perNight || booking.room?.price || 0)}</span></div>
+                <div className="flex justify-between"><span>Price per night</span><span className="font-semibold">{fmtInr(perNightDisplay)}</span></div>
                 {typeof booking.totals?.nights !== 'undefined' && (
                   <div className="flex justify-between"><span>Nights</span><span className="font-semibold">{Number(booking.totals?.nights || booking.booking?.nights || 1)}</span></div>
                 )}

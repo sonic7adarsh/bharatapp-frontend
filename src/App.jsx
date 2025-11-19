@@ -33,6 +33,7 @@ const SellerBookings = lazy(() => import('./pages/SellerBookings'))
 const SellerBookingDetail = lazy(() => import('./pages/SellerBookingDetail'))
 const AddRoom = lazy(() => import('./pages/AddRoom'))
 const SellerProducts = lazy(() => import('./pages/SellerProducts'))
+const EditStore = lazy(() => import('./pages/EditStore'))
 
 export default function App() {
   return (
@@ -42,6 +43,8 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/stores" element={<Stores />} />
           <Route path="/hotels" element={<Hotels />} />
+          {/* Hotel detail alias to avoid mixing with /store in hotels context */}
+          <Route path="/hotels/:id" element={<StoreDetail />} />
           <Route path="/partner" element={<Partner />} />
           <Route path="/onboard" element={
             <ProtectedRoute>
@@ -73,6 +76,11 @@ export default function App() {
           <Route path="/dashboard" element={
             <RoleProtectedRoute roles={["seller","admin"]}>
               <StoreDashboard />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/seller/stores/:storeId/edit" element={
+            <RoleProtectedRoute roles={["seller","admin"]}>
+              <EditStore />
             </RoleProtectedRoute>
           } />
           <Route path="/admin" element={
