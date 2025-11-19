@@ -24,7 +24,7 @@ html, body, #root { height: 100%; }
 /* Component and utility classes */
 @layer components {
   /* Buttons */
-  .btn { @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-brand-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary/40 disabled:opacity-60 disabled:cursor-not-allowed; }
+  .btn { @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary/40 disabled:opacity-60 disabled:cursor-not-allowed; }
   .btn-primary { @apply btn bg-brand-primary text-white hover:bg-brand-primaryDark shadow-elev-1; }
   .btn-secondary { @apply btn bg-brand-accent text-white hover:bg-brand-accentDark shadow-elev-1; }
   .btn-outline { @apply btn border border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white; }
@@ -40,7 +40,7 @@ html, body, #root { height: 100%; }
   .form-label { @apply block text-sm font-medium text-neutral-700 mb-1; }
   .form-helper { @apply mt-1 text-xs text-neutral-600; }
   .form-error { @apply mt-1 text-xs text-semantic-error; }
-  .form-input { @apply w-full rounded-brand-md border border-neutral-200 bg-white px-3 py-2 text-neutral-800 placeholder-neutral-400 shadow-elev-1 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30; }
+  .form-input { @apply w-full rounded-full border border-neutral-200 bg-white px-4 py-2 text-neutral-800 placeholder-neutral-400 shadow-elev-1 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30; }
   .form-select { @apply form-input pr-8; }
   .form-textarea { @apply form-input min-h-[120px]; }
 

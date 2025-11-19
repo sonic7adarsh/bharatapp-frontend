@@ -155,7 +155,7 @@ export default function Stores() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by store name"
-              className="border rounded px-3 py-2 w-full"
+              className="border rounded-full px-4 py-2 w-full"
             />
           </div>
           <div>
@@ -164,7 +164,7 @@ export default function Stores() {
               id="stores-category"
               value={category}
               onChange={e => setCategory(e.target.value === 'All' ? '' : e.target.value)}
-              className="border rounded px-3 py-2 w-full text-sm"
+              className="border rounded-full px-4 py-2 w-full text-sm"
             >
               {categories.map(c => (
                 <option key={c} value={c}>{c}</option>
@@ -179,7 +179,7 @@ export default function Stores() {
               value={city}
               onChange={e => setCity(e.target.value)}
               placeholder={detectingCity && !city ? 'Detecting city…' : 'City (optional)'}
-              className="border rounded px-3 py-2 w-full"
+              className="border rounded-full px-4 py-2 w-full"
             />
           </div>
           <div>
@@ -188,7 +188,7 @@ export default function Stores() {
               id="stores-sort"
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
-              className="border rounded px-3 py-2 w-full text-sm"
+              className="border rounded-full px-4 py-2 w-full text-sm"
             >
               <option value="">Sort</option>
               <option value="rating">Top Rated</option>
@@ -199,7 +199,7 @@ export default function Stores() {
             <Link
               to="/onboard"
               aria-label="Onboard your store"
-              className="inline-flex items-center justify-center px-3 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors text-sm"
             >
               Onboard Your Store
             </Link>
@@ -246,38 +246,35 @@ export default function Stores() {
           No stores found.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="space-y-4">
           {shopsStores.map(store => (
             <Link to={`/store/${store.id}`} key={store.id} className="block">
-              <HoverLiftCard className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-elev-2 transition-shadow duration-300 flex flex-col h-full">
-                {store.image && (
-                  <img src={store.image} alt={store.name} className="w-full h-40 object-cover" />
-                )}
-                <div className="p-4 flex-1 flex flex-col">
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0">
-                      <h2 className="text-xl font-semibold truncate">{store.name}</h2>
-                      <p className="text-gray-600 truncate">{store.category || store.type || 'General'}</p>
+              <HoverLiftCard className="bg-white rounded-lg shadow-md hover:shadow-elev-2 transition-shadow duration-300">
+                <div className="p-4 flex items-start gap-4">
+                  {store.image && (
+                    <img src={store.image} alt={store.name} className="w-28 h-28 sm:w-32 sm:h-32 object-cover rounded-md flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <h2 className="text-lg sm:text-xl font-semibold truncate">{store.name}</h2>
+                        <p className="text-sm text-gray-600 truncate">{store.category || store.type || 'General'}</p>
+                      </div>
+                      <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store.rating !== 'undefined' ? store.rating : 4.5).toFixed(1)}</span>
                     </div>
-                    <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(typeof store.rating !== 'undefined' ? store.rating : 4.5).toFixed(1)}</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs min-h-[28px]">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.location || store.area || 'Nearby'}</span>
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${isOpenNow(store.hours) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
-                      {isOpenNow(store.hours) ? 'Open now' : 'Closed'}
-                    </span>
-                    {todayHoursLabel(store.hours) && (
-                      <span className="text-xs text-gray-600">Today: {todayHoursLabel(store.hours)}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="px-4 pb-4">
-                  <div className="mt-2 h-px bg-gray-100" />
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Explore products and offers</span>
-                    <PressScale className="inline-block">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-md border border-brand-primary text-brand-primary text-sm hover:bg-orange-50">View Store</span>
-                    </PressScale>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.location || store.area || 'Nearby'}</span>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full ${isOpenNow(store.hours) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
+                        {isOpenNow(store.hours) ? 'Open now' : 'Closed'}
+                      </span>
+                      {todayHoursLabel(store.hours) && (
+                        <span className="text-xs text-gray-600">Today: {todayHoursLabel(store.hours)}</span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Explore products and offers</span>
+                      <span className="inline-flex items-center text-brand-accent text-sm">View Store →</span>
+                    </div>
                   </div>
                 </div>
               </HoverLiftCard>

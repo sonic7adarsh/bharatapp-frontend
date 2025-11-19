@@ -106,9 +106,9 @@ export default function CartDrawer({ isOpen, onClose }) {
               value={promo}
               onChange={(e) => setPromo(e.target.value)}
               placeholder="Apply coupon"
-              className="flex-1 border rounded-md px-3 py-2"
+              className="flex-1 border rounded-full px-4 py-2"
             />
-            <button onClick={applyPromo} className="px-3 py-2 rounded-md border hover:bg-gray-50">Apply</button>
+            <button onClick={applyPromo} className="px-4 py-2 rounded-full border hover:bg-gray-50">Apply</button>
           </div>
           <label className="inline-flex items-center gap-2 text-sm text-gray-700">
             <input type="checkbox" checked={allowSubs} onChange={toggleSubs} />
@@ -127,8 +127,8 @@ export default function CartDrawer({ isOpen, onClose }) {
             <div className="text-xl font-bold">₹{Number(totalPrice).toFixed(0)}</div>
           </div>
           <div className="flex gap-2">
-            <button onClick={clearCart} className="flex-1 px-3 py-2 rounded-md border hover:bg-gray-50">Clear</button>
-            <Link to="/cart" onClick={onClose} className="px-3 py-2 rounded-md border hover:bg-gray-50">View Cart</Link>
+            <button onClick={clearCart} className="flex-1 px-4 py-2 rounded-full border hover:bg-gray-50">Clear</button>
+            <Link to="/cart" onClick={onClose} className="px-4 py-2 rounded-full border hover:bg-gray-50">View Cart</Link>
             <button onClick={goToCheckout} className="flex-1 btn-primary">Checkout</button>
           </div>
         </div>

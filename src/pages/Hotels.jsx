@@ -102,12 +102,12 @@ export default function Hotels() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search hotels by name..."
-            className="border rounded px-3 py-2 w-full"
+            className="border rounded-full px-4 py-2 w-full"
           />
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value)}
-            className="border rounded px-3 py-2 w-full text-sm"
+            className="border rounded-full px-4 py-2 w-full text-sm"
           >
             <option value="">Sort</option>
             <option value="rating">Top Rated</option>
@@ -116,7 +116,7 @@ export default function Hotels() {
           <select
             value={minRating}
             onChange={e => setMinRating(Number(e.target.value))}
-            className="border rounded px-3 py-2 w-full text-sm"
+            className="border rounded-full px-4 py-2 w-full text-sm"
           >
             {[0, 4.0, 4.5, 4.8].map(r => (
               <option key={r} value={r}>{r === 0 ? 'All ratings' : `${r}+`}</option>
@@ -137,7 +137,7 @@ export default function Hotels() {
       ) : sortedStores.length === 0 ? (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">No hotels found.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="space-y-4">
           {sortedStores.map(store => (
             <Link
               to={`/store/${store.id}`}
@@ -145,43 +145,40 @@ export default function Hotels() {
               className="block"
               onMouseEnter={() => { import('../pages/StoreDetail') }}
             >
-              <HoverLiftCard className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-elev-2 transition-shadow duration-300">
-                {store.image && (
-                  <img
-                    src={store.image}
-                    alt={store.name}
-                    loading="lazy"
-                    decoding="async"
-                    width="640"
-                    height="320"
-                    fetchpriority="low"
-                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                    className="w-full h-48 object-cover"
-                  />
-                )}
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h2 className="text-xl font-semibold">{store.name}</h2>
-                      <p className="text-gray-600">{store.category || store.type}</p>
+              <HoverLiftCard className="bg-white rounded-lg shadow-md hover:shadow-elev-2 transition-shadow duration-300">
+                <div className="p-4 flex items-start gap-4">
+                  {store.image && (
+                    <img
+                      src={store.image}
+                      alt={store.name}
+                      loading="lazy"
+                      decoding="async"
+                      width="256"
+                      height="256"
+                      fetchpriority="low"
+                      className="w-28 h-28 sm:w-32 sm:h-32 object-cover rounded-md flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <h2 className="text-lg sm:text-xl font-semibold truncate">{store.name}</h2>
+                        <p className="text-sm text-gray-600 truncate">{store.category || store.type}</p>
+                      </div>
+                      {typeof store.rating !== 'undefined' && (
+                        <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(store.rating).toFixed(1)}</span>
+                      )}
                     </div>
-                    {typeof store.rating !== 'undefined' && (
-                      <span className="ml-2 inline-flex items-center justify-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium min-w-[56px]">⭐ {Number(store.rating).toFixed(1)}</span>
-                    )}
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                    {(store.area || store.location) && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.area || store.location}</span>
-                    )}
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">🏨 Hospitality</span>
-                  </div>
-                  <div className="mt-3 text-gray-500 text-xs">Check today’s availability →</div>
-                </div>
-                <div className="px-4 pb-4">
-                  <div className="mt-2 h-px bg-gray-100" />
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Explore rooms and amenities</span>
-                    <span className="inline-flex items-center text-brand-accent text-sm">View Rooms →</span>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      {(store.area || store.location) && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">📍 {store.area || store.location}</span>
+                      )}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">🏨 Hospitality</span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Explore rooms and amenities</span>
+                      <span className="inline-flex items-center text-brand-accent text-sm">View Rooms →</span>
+                    </div>
                   </div>
                 </div>
               </HoverLiftCard>

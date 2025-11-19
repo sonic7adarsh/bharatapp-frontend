@@ -22,13 +22,6 @@ export default function StoreDashboard() {
     return () => clearTimeout(t)
   }, [])
 
-  if (loading) {
-    return (
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        <SkeletonDashboard />
-      </main>
-    )
-  }
   const metrics = useMemo(() => {
     const totalOrders = orders.length
     const revenue = orders.reduce((sum, o) => sum + Number(o.total || o.totals?.payable || 0), 0)
@@ -82,6 +75,14 @@ export default function StoreDashboard() {
     return { totalOrders, revenue, avgOrderValue, itemsSold, topProducts, subtotal, pmCounts, days, maxCount, currRevenue, prevRevenue, growthPct }
   }, [orders, periodDays])
 
+  if (loading) {
+    return (
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        <SkeletonDashboard />
+      </main>
+    )
+  }
+
   return (
     <PageFade className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between">
@@ -91,7 +92,7 @@ export default function StoreDashboard() {
             <Link to="/products/add" className="btn-primary">Add Product</Link>
           </PressScale>
           <PressScale className="inline-block">
-            <Link to="/orders" className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50">View Orders</Link>
+            <Link to="/orders" className="px-4 py-2 rounded-full border border-gray-300 hover:bg-gray-50">View Orders</Link>
           </PressScale>
         </div>
       </div>

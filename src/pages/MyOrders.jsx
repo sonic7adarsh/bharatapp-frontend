@@ -46,7 +46,7 @@ export default function MyOrders() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">My Orders</h2>
         <PressScale className="inline-block">
-          <Link to="/stores" className="inline-flex items-center px-3 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50">Browse Stores</Link>
+          <Link to="/stores" className="inline-flex items-center px-4 py-2 rounded-full border border-brand-primary text-brand-primary hover:bg-orange-50">Browse Stores</Link>
         </PressScale>
       </div>
 
@@ -131,10 +131,10 @@ export default function MyOrders() {
                   <div className={`text-sm ${isDelivered ? 'text-green-700' : status === 'cancelled' ? 'text-red-700' : 'text-gray-700'}`}>{isDelivered ? 'Delivered' : status === 'cancelled' ? 'Cancelled' : `ETA ~${etaRange}`}</div>
                   <div className="flex items-center gap-2">
                     <PressScale className="inline-block">
-                      <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="px-3 py-2 rounded-md border hover:bg-gray-50">View details</Link>
+                      <Link to={`/orders/${encodeURIComponent(order.id || order.reference || '')}`} className="px-4 py-2 rounded-full border hover:bg-gray-50">View details</Link>
                     </PressScale>
                     <PressScale className="inline-block">
-                      <button onClick={handleReorder} className="px-3 py-2 rounded-md border hover:bg-gray-50">Reorder</button>
+                      <button onClick={handleReorder} className="px-4 py-2 rounded-full border hover:bg-gray-50">Reorder</button>
                     </PressScale>
                   </div>
                 </div>

@@ -136,7 +136,7 @@ export default function StoreDetail() {
           </div>
 
           <div className="mt-4 md:mt-0">
-            <button type="button" className="inline-flex items-center px-4 py-2 rounded-md border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors" aria-label="Contact Store">
+            <button type="button" className="inline-flex items-center px-4 py-2 rounded-full border border-brand-primary text-brand-primary hover:bg-orange-50 transition-colors" aria-label="Contact Store">
               Contact Store
             </button>
           </div>
@@ -155,7 +155,7 @@ export default function StoreDetail() {
               value={productSearch}
               onChange={e => setProductSearch(e.target.value)}
               placeholder="Search products by name or description"
-              className="border rounded px-3 py-2 w-full"
+              className="border rounded-full px-4 py-2 w-full"
             />
           </div>
           {productsError && (

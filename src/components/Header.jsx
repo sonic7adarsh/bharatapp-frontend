@@ -38,18 +38,22 @@ export default function Header() {
     } catch {}
   }, [])
 
+  
+
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
+    <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
         <div className="flex items-center justify-between h-14 sm:h-16">
-          {/* Logo - responsive sizing */}
-          <Link to="/" className="font-bold text-lg sm:text-xl text-brand-accent flex-shrink-0">
-            <span className="hidden sm:inline">Bharat · Local</span>
-            <span className="sm:hidden">BL</span>
-          </Link>
+          <div className="flex items-center">
+            <Link to="/" className="font-bold text-lg sm:text-xl text-brand-accent flex-shrink-0">
+              <span className="hidden sm:inline">Bharat · Local</span>
+              <span className="sm:hidden">BL</span>
+            </Link>
+          </div>
           
           {/* Mobile: Cart + Menu */}
           <div className="flex items-center space-x-2 md:hidden">
+            {isAuthenticated && (
             <Link to="/cart" className="relative p-2 text-gray-700 hover:text-brand-accent touch-manipulation">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="9" cy="21" r="1" />
@@ -62,6 +66,7 @@ export default function Header() {
                 </span>
               )}
             </Link>
+            )}
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2 text-gray-600 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 rounded-md touch-manipulation"
@@ -77,7 +82,7 @@ export default function Header() {
             </button>
           </div>
           
-          {/* Desktop navigation */}
+          {/* Desktop navigation - right group */}
           <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
             <Link to="/" className="text-gray-700 hover:text-brand-accent font-medium transition-colors">Home</Link>
             <Link to="/stores" className="text-gray-700 hover:text-brand-accent font-medium transition-colors">Stores</Link>
@@ -87,7 +92,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setIsLocMenuOpen(v => !v)}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 border rounded-md hover:bg-gray-50"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 border hover:bg-gray-50 rounded-md"
                 aria-haspopup="true"
                 aria-expanded={isLocMenuOpen}
               >
@@ -131,19 +136,21 @@ export default function Header() {
                 </div>
               )}
             </div>
-            <Link to="/cart" className="relative inline-flex items-center text-gray-700 hover:text-brand-accent font-medium transition-colors">
-              <svg className="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
-              <span className="hidden lg:inline">Cart</span>
-              {itemsCount > 0 && (
-                <span className="ml-1 lg:ml-2 inline-flex items-center justify-center text-xs font-bold bg-red-500 text-white rounded-full h-5 min-w-[20px] px-1">
-                  {itemsCount > 99 ? '99+' : itemsCount}
-                </span>
-              )}
-            </Link>
+            {isAuthenticated && (
+              <Link to="/cart" className="relative inline-flex items-center text-gray-700 hover:text-brand-accent font-medium transition-colors">
+                <svg className="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="9" cy="21" r="1" />
+                  <circle cx="20" cy="21" r="1" />
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                </svg>
+                <span className="hidden lg:inline">Cart</span>
+                {itemsCount > 0 && (
+                  <span className="ml-1 lg:ml-2 inline-flex items-center justify-center text-xs font-bold bg-red-500 text-white rounded-full h-5 min-w-[20px] px-1">
+                    {itemsCount > 99 ? '99+' : itemsCount}
+                  </span>
+                )}
+              </Link>
+            )}
             
             {/* Auth section */}
             <div className="flex items-center space-x-2 lg:space-x-3">
@@ -167,8 +174,8 @@ export default function Header() {
                 </div>
               ) : (
                 <>
-                  <Link to="/login" className="px-3 lg:px-4 py-2 text-sm font-medium link-brand">Login</Link>
-                  <Link to="/register" className="px-3 lg:px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primaryDark transition-colors">Register</Link>
+                  <Link to="/login" className="px-3 lg:px-4 py-2 text-sm font-medium link-brand">Log in</Link>
+                  <Link to="/register" className={`px-3 lg:px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-full hover:bg-brand-primaryDark transition-colors`}>Start for free</Link>
                 </>
               )}
             </div>
@@ -197,25 +204,25 @@ export default function Header() {
                   <Link to="/dashboard" className="block px-3 py-3 text-base font-medium text-gray-700 hover:text-brand-accent hover:bg-gray-50 rounded-md transition-colors touch-manipulation">
                     📊 Dashboard
                   </Link>
-                  <div className="border-t border-gray-200 pt-2 mt-2">
-                    <div className="px-3 py-2 text-sm text-gray-500">
-                      Signed in as {user?.name || user?.phone || 'User'}
-                    </div>
-                    <button 
-                      onClick={logout}
-                      className="block w-full text-left px-3 py-3 text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors touch-manipulation"
-                    >
-                      🚪 Logout
-                    </button>
+                <div className="border-t border-gray-200 pt-2 mt-2">
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    Signed in as {user?.name || user?.phone || 'User'}
                   </div>
-                </>
+                  <button 
+                    onClick={logout}
+                    className="block w-full text-left px-3 py-3 text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors touch-manipulation"
+                  >
+                    🚪 Logout
+                  </button>
+                </div>
+              </>
               ) : (
                 <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
                   <Link to="/login" className="block px-3 py-3 text-base font-medium link-brand hover:bg-brand-muted rounded-md transition-colors touch-manipulation">
-                    🔑 Login
+                    🔑 Log in
                   </Link>
-                  <Link to="/register" className="block px-3 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primaryDark rounded-md transition-colors touch-manipulation">
-                    ✨ Register
+                  <Link to="/register" className="block px-3 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primaryDark rounded-full transition-colors touch-manipulation">
+                    ✨ Start for free
                   </Link>
                 </div>
               )}
