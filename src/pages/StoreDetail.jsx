@@ -6,6 +6,7 @@ import useCart from '../context/CartContext'
 import QuickViewModal from '../components/QuickViewModal'
 import { SkeletonStoreHeader, SkeletonProductCard } from '../components/Skeletons'
 import { PageFade, PressScale } from '../motion/presets'
+import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function StoreDetail() {
   const { id } = useParams()
@@ -19,6 +20,7 @@ export default function StoreDetail() {
   const [quickProduct, setQuickProduct] = useState(null)
   const [quickOpen, setQuickOpen] = useState(false)
   const [productSearch, setProductSearch] = useState('')
+  const { announce } = useAnnouncer()
   const filteredProducts = useMemo(() => {
     const q = (productSearch || '').toLowerCase()
     if (!q) return products
@@ -26,12 +28,25 @@ export default function StoreDetail() {
   }, [products, productSearch])
 
   useEffect(() => {
+    const controller = new AbortController()
     const fetchStoreDetails = async () => {
       try {
         setLoading(true)
         
+        // Use prefetched cache first for faster paint
+        const cachedStore = storeService.getCachedStore(id)
+        if (cachedStore) {
+          setStore(cachedStore)
+          setStoreError(null)
+        }
+        const cachedProducts = storeService.getCachedProducts(id)
+        if (Array.isArray(cachedProducts)) {
+          setProducts(cachedProducts)
+          setProductsError(null)
+        }
+
         // Fetch store details
-        const fetchedStore = await storeService.getStore(id)
+        const fetchedStore = await storeService.getStore(id, { signal: controller.signal })
         if (fetchedStore) {
           setStore(fetchedStore)
           setStoreError(null)
@@ -40,7 +55,7 @@ export default function StoreDetail() {
         }
         
         // Fetch store products
-        const fetchedProducts = await storeService.getProductsByStore(id)
+        const fetchedProducts = await storeService.getProductsByStore(id, { signal: controller.signal })
         if (Array.isArray(fetchedProducts)) {
           setProducts(fetchedProducts)
           setProductsError(null)
@@ -48,6 +63,7 @@ export default function StoreDetail() {
           setProductsError('Failed to load products. Please try again later.')
         }
       } catch (error) {
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') return
         console.error('Error fetching store details:', error)
         
         // Handle API errors
@@ -69,17 +85,34 @@ export default function StoreDetail() {
     }
 
     fetchStoreDetails()
+    return () => { controller.abort() }
   }, [id])
+
+  // Announce loading and results
+  useEffect(() => {
+    if (loading) {
+      announce('Loading store details…', 'polite')
+      return
+    }
+    if (storeError && !store) {
+      announce(`Error loading store: ${storeError}`, 'polite')
+      return
+    }
+    if (store) {
+      const count = Array.isArray(products) ? products.length : 0
+      announce(count === 0 ? `Loaded ${store.name}. No products available.` : `Loaded ${store.name}. ${count} products available.`, 'polite')
+    }
+  }, [loading, storeError, store, products.length])
 
   if (loading) {
     return (
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-8" aria-busy="true">
         <SkeletonStoreHeader />
         <section className="mt-8">
           <div className="flex justify-between items-center mb-6">
             <div className="h-6 bg-gray-200 rounded w-32 animate-pulse" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div role="status" aria-live="polite" aria-label="Loading products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, idx) => (<SkeletonProductCard key={idx} />))}
           </div>
         </section>
@@ -90,7 +123,7 @@ export default function StoreDetail() {
   if (storeError && !store) {
     return (
       <main className="max-w-5xl mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-md mb-6">
+        <div role="alert" aria-live="assertive" className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-md mb-6">
           <p className="font-medium">Error</p>
           <p>{storeError}</p>
         </div>
@@ -144,9 +177,9 @@ export default function StoreDetail() {
       </div>
 
       {/* Products Section */}
-      <section>
+      <section aria-labelledby="store-products-heading">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-          <h2 className="text-2xl font-bold">Products</h2>
+          <h2 id="store-products-heading" className="text-2xl font-bold">Products</h2>
           <div className="flex-1 md:max-w-sm">
             <label htmlFor="product-search" className="sr-only">Search products</label>
             <input
@@ -164,7 +197,7 @@ export default function StoreDetail() {
         </div>
 
         {products.length === 0 ? (
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
+          <div role="status" aria-live="polite" className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
             <p className="font-medium">No products available for this store.</p>
             <p className="mt-1 text-sm">Please check back later or explore other stores.</p>
             <div className="mt-3">
@@ -172,17 +205,18 @@ export default function StoreDetail() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ul role="list" aria-labelledby="store-products-heading" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onQuick={() => { setQuickProduct(product); setQuickOpen(true) }}
-                storeId={id}
-                storeCategory={store?.category}
-              />
+              <li key={product.id} className="list-none">
+                <ProductCard
+                  product={product}
+                  onQuick={() => { setQuickProduct(product); setQuickOpen(true) }}
+                  storeId={id}
+                  storeCategory={store?.category}
+                />
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 

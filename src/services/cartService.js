@@ -7,6 +7,11 @@ const cartService = {
       const { data } = await axios.get('/store/cart')
       return data
     } catch (e) {
+      try {
+        const saved = localStorage.getItem('cart')
+        const cart = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
+        if (cart.length > 0) return cart
+      } catch {}
       return generateCart()
     }
   },

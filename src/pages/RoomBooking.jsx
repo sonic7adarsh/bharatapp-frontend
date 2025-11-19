@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState, useTransition } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { STORES } from '../data/stores'
 import useAuth from '../hooks/useAuth'
 import orderService from '../services/orderService'
 import storeService from '../services/storeService'
 import { PageFade, PressScale } from '../motion/presets'
+import { DayPicker } from 'react-day-picker'
+import 'react-day-picker/dist/style.css'
+import { format, addDays } from 'date-fns'
 
 export default function RoomBooking() {
   const { storeId, roomId } = useParams()
@@ -38,6 +41,32 @@ export default function RoomBooking() {
     } catch { return 1 }
   }, [checkIn, checkOut])
 
+  // Calendar range state mirrors check-in/out
+  const [range, setRange] = useState(() => {
+    try {
+      const from = new Date(checkIn)
+      const to = new Date(checkOut)
+      return { from, to }
+    } catch {
+      const today = new Date()
+      return { from: today, to: addDays(today, 1) }
+    }
+  })
+  const [month, setMonth] = useState(() => (range?.from ? range.from : new Date()))
+
+  // Popover control for calendar open/close
+  const [showCalendar, setShowCalendar] = useState(false)
+  const calendarPopoverRef = useRef(null)
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!showCalendar) return
+      const el = calendarPopoverRef.current
+      if (el && !el.contains(e.target)) setShowCalendar(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [showCalendar])
+
   const minCheckIn = useMemo(() => new Date().toISOString().slice(0,10), [])
   const minCheckOut = useMemo(() => { const d = new Date(checkIn); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10) }, [checkIn])
 
@@ -51,6 +80,16 @@ export default function RoomBooking() {
       setCheckOut(next.toISOString().slice(0,10))
     }
   }, [checkIn])
+
+  // Keep calendar selection in sync when inputs change externally
+  useEffect(() => {
+    try {
+      const from = new Date(checkIn)
+      const to = new Date(checkOut)
+      setRange({ from, to })
+      setMonth(from)
+    } catch {}
+  }, [checkIn, checkOut])
 
   // Prefill guest details from authenticated user
   useEffect(() => {
@@ -148,11 +187,7 @@ export default function RoomBooking() {
       const data = await orderService.checkout(payload)
       const orderId = data?.order?.id
       startTransition(() => {
-        if (orderId) {
-          navigate(`/orders/${orderId}`)
-        } else {
-          setSuccess(true)
-        }
+        navigate(`/bookings/${orderId || 'latest'}`)
       })
     } catch (err) {
       const msg = err?.response?.data?.message || 'Booking failed. Please try again.'
@@ -196,6 +231,19 @@ export default function RoomBooking() {
       setError('Unable to check availability right now. Please try again.')
     } finally {
       setCheckingAvailability(false)
+    }
+  }
+
+  const onSelectRange = (r) => {
+    setRange(r || {})
+    if (r?.from) {
+      try { setCheckIn(format(r.from, 'yyyy-MM-dd')) } catch {}
+    }
+    const coDate = r?.to ? r.to : (r?.from ? addDays(r.from, 1) : null)
+    if (coDate) {
+      try { setCheckOut(format(coDate, 'yyyy-MM-dd')) } catch {}
+      // Close once a valid range is formed
+      if (r?.from) setShowCalendar(false)
     }
   }
 
@@ -256,30 +304,64 @@ export default function RoomBooking() {
         <div className="md:col-span-1 flex flex-col gap-4">
           <div className="bg-white rounded-lg shadow-sm p-4" aria-busy={loading || isPending}>
           {error && (
-            <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded">{error}</div>
+            <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded" aria-live="polite">{error}</div>
           )}
           {step === 1 ? (
             <div className="grid grid-cols-1 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Check-in</label>
-                <input type="date" value={checkIn} min={minCheckIn} onChange={e => setCheckIn(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Check-out</label>
-                <input type="date" value={checkOut} min={minCheckOut} onChange={e => setCheckOut(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
+              <div className="relative">
+                <label className="block text-sm font-medium mb-1" htmlFor="check-in">Check-in</label>
+                <input
+                  id="check-in"
+                  type="text"
+                  readOnly
+                  value={checkIn}
+                  onClick={() => setShowCalendar(true)}
+                  className="border rounded px-3 py-2 w-full cursor-pointer"
+                  aria-haspopup="dialog"
+                  aria-expanded={showCalendar}
+                />
+                <label className="block text-sm font-medium mb-1 mt-3" htmlFor="check-out">Check-out</label>
+                <input
+                  id="check-out"
+                  type="text"
+                  readOnly
+                  value={checkOut}
+                  onClick={() => setShowCalendar(true)}
+                  className="border rounded px-3 py-2 w-full cursor-pointer"
+                  aria-haspopup="dialog"
+                  aria-expanded={showCalendar}
+                />
+                {showCalendar && (
+                  <div ref={calendarPopoverRef} className="absolute z-50 left-0 mt-2 w-auto bg-white border rounded-md shadow-lg p-2">
+                    <DayPicker
+                      mode="range"
+                      selected={range}
+                      onSelect={onSelectRange}
+                      month={month}
+                      onMonthChange={setMonth}
+                      captionLayout="buttons"
+                      disabled={{ before: new Date() }}
+                      weekStartsOn={1}
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button type="button" className="btn-outline px-2 py-1 text-xs" onClick={() => setShowCalendar(false)}>Close</button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-2 text-xs text-gray-600">📅 Check-in {checkIn} · Check-out {checkOut} · {nights} night{nights > 1 ? 's' : ''}</div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Guests</label>
-                <div className="mt-1 text-xs text-gray-600">Max 3 guests per room. Use +/− per room; adding beyond 3 creates a new room.</div>
+                <div id="guests-help" className="mt-1 text-xs text-gray-600">Max 3 guests per room. Use +/− per room; adding beyond 3 creates a new room.</div>
                 <div className="mt-1 inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs">Extra mattress included (free) when 3 guests in a room</div>
                 <div className="mt-3 space-y-2">
                   {roomsGuests.map((g, idx) => (
                     <div key={idx} className="flex items-center justify-between border rounded-md px-3 py-2">
                       <span className="text-sm font-medium">Room {idx + 1}</span>
                       <div className="inline-flex items-center rounded-md bg-gray-50 border">
-                        <button type="button" onClick={() => decRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading}>-</button>
+                        <button type="button" onClick={() => decRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading} aria-label={`Remove guest from room ${idx + 1}`}>-</button>
                         <span className="px-3 text-sm">{g} guest{g > 1 ? 's' : ''}</span>
-                        <button type="button" onClick={() => incRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading}>+</button>
+                        <button type="button" onClick={() => incRoom(idx)} className="px-2 py-1 text-lg font-bold hover:bg-gray-100" disabled={loading} aria-label={`Add guest to room ${idx + 1}`}>+</button>
                       </div>
                     </div>
                   ))}
@@ -291,21 +373,21 @@ export default function RoomBooking() {
           ) : (
             <div className="grid grid-cols-1 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Guest Name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
+                <label className="block text-sm font-medium mb-1" htmlFor="guest-name">Guest Name</label>
+                <input id="guest-name" type="text" value={name} onChange={e => setName(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Phone</label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
+                <label className="block text-sm font-medium mb-1" htmlFor="guest-phone">Phone</label>
+                <input id="guest-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="border rounded px-3 py-2 w-full" disabled={loading} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Special Requests</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} className="border rounded px-3 py-2 w-full min-h-[80px]" disabled={loading} />
+                <label className="block text-sm font-medium mb-1" htmlFor="special-requests">Special Requests</label>
+                <textarea id="special-requests" value={notes} onChange={e => setNotes(e.target.value)} className="border rounded px-3 py-2 w-full min-h-[80px]" disabled={loading} />
               </div>
               <div className="flex items-center justify-between">
                 <button type="button" onClick={() => setStep(1)} className="btn-secondary">Back</button>
                 <PressScale className="inline-block">
-                  <button onClick={confirmBooking} disabled={loading} className="btn-primary">
+                  <button onClick={confirmBooking} disabled={loading} className="btn-primary" aria-busy={loading}>
                     {loading ? 'Booking...' : 'Confirm Booking'}
                   </button>
                 </PressScale>
@@ -383,7 +465,7 @@ export default function RoomBooking() {
             {step === 1 && (
               <div className="mt-4">
                 <PressScale className="inline-block w-full">
-                  <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability}>
+                  <button type="button" onClick={handleCheckAvailability} className="btn-primary w-full" disabled={checkingAvailability} aria-busy={checkingAvailability}>
                     {checkingAvailability ? 'Checking availability...' : 'Check availability'}
                   </button>
                 </PressScale>

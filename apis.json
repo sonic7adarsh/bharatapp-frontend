@@ -1,0 +1,770 @@
+{
+	"info": {
+		"_postman_id": "bharatshop-api-collection",
+		"name": "BharatShop API Collection",
+		"description": "Complete API collection for BharatShop e-commerce platform including Storefront, Platform, and Webhook APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Storefront APIs",
+			"description": "Customer-facing APIs for the storefront",
+			"item": [
+				{
+					"name": "Authentication",
+					"item": [
+						{
+							"name": "Register Customer",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"phone\": \"+919876543210\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/storefront/auth/register",
+									"host": ["{{base_url}}"],
+									"path": ["api", "storefront", "auth", "register"]
+								}
+							}
+						},
+						{
+							"name": "Login with Email",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/storefront/auth/login/email",
+									"host": ["{{base_url}}"],
+									"path": ["api", "storefront", "auth", "login", "email"]
+								}
+							}
+						},
+						{
+							"name": "Initiate Phone Login",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"phone\": \"+919876543210\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/storefront/auth/login/phone",
+									"host": ["{{base_url}}"],
+									"path": ["api", "storefront", "auth", "login", "phone"]
+								}
+							}
+						},
+						{
+							"name": "Verify Phone Login",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"phone\": \"+919876543210\",\n  \"otp\": \"123456\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/storefront/auth/login/phone/verify",
+									"host": ["{{base_url}}"],
+									"path": ["api", "storefront", "auth", "login", "phone", "verify"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Products",
+					"item": [
+						{
+							"name": "Get Products",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/products?page=0&size=20&sort=name,asc",
+									"host": ["{{base_url}}"],
+									"path": ["store", "products"],
+									"query": [
+										{"key": "page", "value": "0"},
+										{"key": "size", "value": "20"},
+										{"key": "sort", "value": "name,asc"}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Product by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/products/{{product_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["store", "products", "{{product_id}}"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Categories",
+					"item": [
+						{
+							"name": "Get Categories",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/categories",
+									"host": ["{{base_url}}"],
+									"path": ["store", "categories"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Shopping Cart",
+					"item": [
+						{
+							"name": "Add to Cart",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"productId\": 1,\n  \"quantity\": 2,\n  \"variantId\": null\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/store/cart/add",
+									"host": ["{{base_url}}"],
+									"path": ["store", "cart", "add"]
+								}
+							}
+						},
+						{
+							"name": "Get Cart",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/cart",
+									"host": ["{{base_url}}"],
+									"path": ["store", "cart"]
+								}
+							}
+						},
+						{
+							"name": "Remove from Cart",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/cart/{{cart_item_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["store", "cart", "{{cart_item_id}}"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Orders",
+					"item": [
+						{
+							"name": "Checkout",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"addressId\": 1,\n  \"notes\": \"Please deliver between 9 AM - 6 PM\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/store/checkout",
+									"host": ["{{base_url}}"],
+									"path": ["store", "checkout"]
+								}
+							}
+						},
+						{
+							"name": "Get Orders",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/orders?page=0&size=10",
+									"host": ["{{base_url}}"],
+									"path": ["store", "orders"],
+									"query": [
+										{"key": "page", "value": "0"},
+										{"key": "size", "value": "10"}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Order by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/store/orders/{{order_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["store", "orders", "{{order_id}}"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Payments",
+					"item": [
+						{
+							"name": "Initiate Payment",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"orderId\": 1,\n  \"paymentMethod\": \"RAZORPAY\",\n  \"amount\": 1500.00\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/store/payments/initiate",
+									"host": ["{{base_url}}"],
+									"path": ["store", "payments", "initiate"]
+								}
+							}
+						},
+						{
+							"name": "Verify Payment",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Tenant-Domain",
+										"value": "{{tenant_domain}}"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{customer_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"paymentId\": \"pay_123456789\",\n  \"orderId\": \"order_123456789\",\n  \"signature\": \"signature_hash\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/store/payments/verify",
+									"host": ["{{base_url}}"],
+									"path": ["store", "payments", "verify"]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Platform APIs",
+			"description": "Admin and vendor management APIs",
+			"item": [
+				{
+					"name": "Authentication",
+					"item": [
+						{
+							"name": "Register Vendor",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Vendor\",\n  \"businessName\": \"John's Store\",\n  \"domain\": \"johns-store\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/platform/auth/register/vendor",
+									"host": ["{{base_url}}"],
+									"path": ["api", "platform", "auth", "register", "vendor"]
+								}
+							}
+						},
+						{
+							"name": "Platform Login",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/platform/auth/login",
+									"host": ["{{base_url}}"],
+									"path": ["api", "platform", "auth", "login"]
+								}
+							}
+						},
+						{
+							"name": "Refresh Token",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/platform/auth/refresh",
+									"host": ["{{base_url}}"],
+									"path": ["api", "platform", "auth", "refresh"]
+								}
+							}
+						},
+						{
+							"name": "Get Current User",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/platform/auth/me",
+									"host": ["{{base_url}}"],
+									"path": ["api", "platform", "auth", "me"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Product Management",
+					"item": [
+						{
+							"name": "Get Products",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/platform/products?page=0&size=20",
+									"host": ["{{base_url}}"],
+									"path": ["api", "platform", "products"],
+									"query": [
+										{"key": "page", "value": "0"},
+										{"key": "size", "value": "20"}
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Product",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Sample Product\",\n  \"description\": \"A sample product description\",\n  \"price\": 99.99,\n  \"categoryId\": 1,\n  \"sku\": \"SAMPLE-001\",\n  \"stockQuantity\": 100,\n  \"isActive\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/platform/products",
+									"host": ["{{base_url}}"],
+									"path": ["api", "platform", "products"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Vendor Management",
+					"item": [
+						{
+							"name": "Get Vendor Profile",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/vendors/me",
+									"host": ["{{base_url}}"],
+									"path": ["api", "vendors", "me"]
+								}
+							}
+						},
+						{
+							"name": "Update Vendor Profile",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"businessName\": \"Updated Store Name\",\n  \"description\": \"Updated store description\",\n  \"phone\": \"+919876543210\",\n  \"address\": \"123 Business Street, City\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/vendors/me",
+									"host": ["{{base_url}}"],
+									"path": ["api", "vendors", "me"]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Shared APIs",
+			"description": "Shared functionality across platform and storefront",
+			"item": [
+				{
+					"name": "Media Management",
+					"item": [
+						{
+							"name": "Generate Presigned Upload URL",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									},
+									{
+										"key": "X-Tenant-ID",
+										"value": "{{tenant_id}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"filename\": \"product-image.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 1024000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/media/presign-upload",
+									"host": ["{{base_url}}"],
+									"path": ["api", "media", "presign-upload"]
+								}
+							}
+						},
+						{
+							"name": "Get Media File",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{platform_token}}"
+									},
+									{
+										"key": "X-Tenant-ID",
+										"value": "{{tenant_id}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/media/{{media_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "media", "{{media_id}}"]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Webhook APIs",
+			"description": "Webhook endpoints for external integrations",
+			"item": [
+				{
+					"name": "Payment Webhooks",
+					"item": [
+						{
+							"name": "Razorpay Webhook",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "X-Razorpay-Signature",
+										"value": "webhook_signature"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"entity\": \"event\",\n  \"account_id\": \"acc_123456789\",\n  \"event\": \"payment.captured\",\n  \"contains\": [\"payment\"],\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_123456789\",\n        \"amount\": 150000,\n        \"currency\": \"INR\",\n        \"status\": \"captured\"\n      }\n    }\n  }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/store/payments/webhook",
+									"host": ["{{base_url}}"],
+									"path": ["store", "payments", "webhook"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Tracking Webhooks",
+					"item": [
+						{
+							"name": "Delhivery Tracking Webhook",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"waybill\": \"1234567890\",\n  \"status\": \"Delivered\",\n  \"scans\": [\n    {\n      \"ScanDateTime\": \"2024-01-15T10:30:00Z\",\n      \"ScanType\": \"UD\",\n      \"Scan\": \"Delivered\",\n      \"StatusDateTime\": \"2024-01-15T10:30:00Z\"\n    }\n  ]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/webhooks/tracking/delhivery",
+									"host": ["{{base_url}}"],
+									"path": ["api", "webhooks", "tracking", "delhivery"]
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+    "value": "http://localhost:8081",
+			"type": "string"
+		},
+		{
+			"key": "tenant_domain",
+			"value": "demo-store",
+			"type": "string"
+		},
+		{
+			"key": "tenant_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "customer_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "platform_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "product_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "order_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "cart_item_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "media_id",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}

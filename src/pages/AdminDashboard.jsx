@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { PageFade, PressScale } from '../motion/presets'
 import { STORES } from '../data/stores'
+import { useAnnouncer } from '../context/AnnouncerContext'
 
 export default function AdminDashboard() {
   const [pending, setPending] = useState([])
@@ -9,6 +10,7 @@ export default function AdminDashboard() {
   const [vendorCategory, setVendorCategory] = useState('')
   const [pendingCity, setPendingCity] = useState('')
   const [selectedPending, setSelectedPending] = useState(() => new Set())
+  const { announce } = useAnnouncer()
   
   const exportCSV = (filename, rows, columns) => {
     const header = columns.map(c => c.label).join(',')
@@ -53,9 +55,11 @@ export default function AdminDashboard() {
 
   const approve = (id) => {
     persistPending(pending.filter(p => p.id !== id))
+    announce(`Approved ${id}.`, 'polite')
   }
   const reject = (id) => {
     persistPending(pending.filter(p => p.id !== id))
+    announce(`Rejected ${id}.`, 'polite')
   }
 
   const toggleSelectPending = (id) => {
@@ -71,12 +75,14 @@ export default function AdminDashboard() {
     const remaining = pending.filter(p => !selectedPending.has(p.id))
     persistPending(remaining)
     setSelectedPending(new Set())
+    announce('Bulk approved selected pending stores.', 'polite')
   }
   const bulkReject = () => {
     if (selectedPending.size === 0) return
     const remaining = pending.filter(p => !selectedPending.has(p.id))
     persistPending(remaining)
     setSelectedPending(new Set())
+    announce('Bulk rejected selected pending stores.', 'polite')
   }
 
   const filteredPending = pending.filter(p => (
@@ -93,18 +99,27 @@ export default function AdminDashboard() {
     return matchesQuery && matchesCat
   })
 
+  // Announce list sizes when filters change
+  useEffect(() => {
+    announce(filteredPending.length === 0 ? 'No pending approvals.' : `Showing ${filteredPending.length} pending approvals.`, 'polite')
+  }, [filteredPending.length])
+  useEffect(() => {
+    announce(filteredVendors.length === 0 ? 'No vendors found.' : `Showing ${filteredVendors.length} vendors.`, 'polite')
+  }, [filteredVendors.length])
+
   return (
     <PageFade className="max-w-6xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold">Admin Dashboard</h2>
+      <h1 className="text-2xl font-bold">Admin Dashboard</h1>
       <p className="text-gray-600 mt-1">Manage vendor approvals and view registered stores.</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* Pending Approvals */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <section className="bg-white rounded-lg shadow-sm" aria-labelledby="pending-approvals-heading">
           <div className="p-4 border-b font-semibold flex items-center justify-between">
-            <span>Pending Approvals</span>
+            <span id="pending-approvals-heading">Pending Approvals</span>
             <div className="flex items-center gap-2">
-              <input value={pendingCity} onChange={e => setPendingCity(e.target.value)} placeholder="Filter by city" className="border rounded px-2 py-1 text-sm" />
+              <label className="sr-only" htmlFor="pending-city-filter">Filter by city</label>
+              <input id="pending-city-filter" value={pendingCity} onChange={e => { setPendingCity(e.target.value); announce(`Filter city set to ${e.target.value || 'all'}.`, 'polite') }} placeholder="Filter by city" className="border rounded px-2 py-1 text-sm" />
               <button onClick={bulkApprove} className="px-2 py-1 rounded bg-green-600 text-white text-sm hover:bg-green-700">Bulk Approve</button>
               <button onClick={bulkReject} className="px-2 py-1 rounded bg-red-600 text-white text-sm hover:bg-red-700">Bulk Reject</button>
               <button
@@ -115,24 +130,25 @@ export default function AdminDashboard() {
                   { label: 'City', get: r => r.city },
                 ])}
                 className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-sm hover:bg-gray-200"
+                aria-label="Export pending approvals as CSV"
               >
                 Export CSV
               </button>
             </div>
           </div>
           {pending.length === 0 ? (
-            <div className="p-4 text-gray-600">No pending approvals.</div>
+            <div role="status" aria-live="polite" className="p-4 text-gray-600">No pending approvals.</div>
           ) : (
-            <ul className="divide-y">
+            <ul role="list" aria-labelledby="pending-approvals-heading" className="divide-y">
               {filteredPending.map(p => (
-                <li key={p.id} className="p-4 flex items-center justify-between">
+                <li role="listitem" key={p.id} className="p-4 flex items-center justify-between">
                   <div>
                     <div className="font-medium">{p.name}</div>
                     <div className="text-sm text-gray-600">Owner: {p.owner} • City: {p.city}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="inline-flex items-center text-sm text-gray-600 mr-3">
-                      <input type="checkbox" checked={selectedPending.has(p.id)} onChange={() => toggleSelectPending(p.id)} className="mr-1" /> Select
+                      <input type="checkbox" aria-label={`Select ${p.name}`} checked={selectedPending.has(p.id)} onChange={() => toggleSelectPending(p.id)} className="mr-1" /> Select
                     </label>
                     <PressScale className="inline-block">
                       <button onClick={() => approve(p.id)} className="px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700">Approve</button>
@@ -145,15 +161,17 @@ export default function AdminDashboard() {
               ))}
             </ul>
           )}
-        </div>
+        </section>
 
         {/* Vendors List */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <section className="bg-white rounded-lg shadow-sm" aria-labelledby="vendors-heading">
           <div className="p-4 border-b font-semibold flex items-center justify-between">
-            <span>Vendors</span>
+            <span id="vendors-heading">Vendors</span>
             <div className="flex items-center gap-2">
-              <input value={vendorQuery} onChange={e => setVendorQuery(e.target.value)} placeholder="Search vendors" className="border rounded px-2 py-1 text-sm" />
-              <input value={vendorCategory} onChange={e => setVendorCategory(e.target.value)} placeholder="Filter by category" className="border rounded px-2 py-1 text-sm" />
+              <label className="sr-only" htmlFor="vendor-query">Search vendors</label>
+              <input id="vendor-query" value={vendorQuery} onChange={e => setVendorQuery(e.target.value)} placeholder="Search vendors" className="border rounded px-2 py-1 text-sm" />
+              <label className="sr-only" htmlFor="vendor-category">Filter by category</label>
+              <input id="vendor-category" value={vendorCategory} onChange={e => setVendorCategory(e.target.value)} placeholder="Filter by category" className="border rounded px-2 py-1 text-sm" />
               <button
                 onClick={() => exportCSV('vendors.csv', filteredVendors, [
                   { label: 'ID', get: r => r.id },
@@ -163,38 +181,39 @@ export default function AdminDashboard() {
                   { label: 'Rating', get: r => r.rating },
                 ])}
                 className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-sm hover:bg-gray-200"
+                aria-label="Export vendors as CSV"
               >
                 Export CSV
               </button>
             </div>
           </div>
           {vendors.length === 0 ? (
-            <div className="p-4 text-gray-600">No vendors registered.</div>
+            <div role="status" aria-live="polite" className="p-4 text-gray-600">No vendors registered.</div>
           ) : (
             <div className="p-4 overflow-x-auto">
-              <table className="min-w-full text-sm">
+              <table role="table" aria-labelledby="vendors-heading" className="min-w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-600">
-                    <th className="pb-2 pr-4">Store</th>
-                    <th className="pb-2 pr-4">Category</th>
-                    <th className="pb-2 pr-4">Area</th>
-                    <th className="pb-2 pr-4">Rating</th>
+                  <tr role="row" className="text-left text-gray-600">
+                    <th role="columnheader" scope="col" className="pb-2 pr-4">Store</th>
+                    <th role="columnheader" scope="col" className="pb-2 pr-4">Category</th>
+                    <th role="columnheader" scope="col" className="pb-2 pr-4">Area</th>
+                    <th role="columnheader" scope="col" className="pb-2 pr-4">Rating</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredVendors.map(v => (
-                    <tr key={v.id} className="border-t">
-                      <td className="py-2 pr-4 font-medium">{v.name}</td>
-                      <td className="py-2 pr-4">{v.category || v.type}</td>
-                      <td className="py-2 pr-4">{v.area || v.location}</td>
-                      <td className="py-2 pr-4">{v.rating || '—'}</td>
-                    </tr>
+                    <tr role="row" key={v.id} className="border-t">
+                      <td role="cell" className="py-2 pr-4 font-medium">{v.name}</td>
+                      <td role="cell" className="py-2 pr-4">{v.category || v.type}</td>
+                      <td role="cell" className="py-2 pr-4">{v.area || v.location}</td>
+                      <td role="cell" className="py-2 pr-4">{v.rating || '—'}</td>
+                  </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </PageFade>
   )

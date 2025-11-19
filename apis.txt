@@ -1,0 +1,249 @@
+Curl Examples (Copy-Paste Ready)
+--------------------------------
+Note: Replace `TOKEN` and `TENANT` with real values. Default base URL: `http://localhost:8081`.
+
+Storefront Auth
+- Register:
+curl -X POST 'http://localhost:8081/api/storefront/auth/register' -H 'Content-Type: application/json' -d '{"name":"Alice","email":"alice@example.com","password":"Secret123","role":"customer"}'
+  Sample Response: { "token":"jwt-token", "user": { "id":"U123","name":"Alice","role":"customer" } }
+
+- Login (email):
+curl -X POST 'http://localhost:8081/api/storefront/auth/login/email' -H 'Content-Type: application/json' -d '{"email":"alice@example.com","password":"Secret123"}'
+  Sample Response: { "token":"jwt-token","user": { "id":"U123","email":"alice@example.com","role":"customer" } }
+
+- Login (phone):
+curl -X POST 'http://localhost:8081/api/storefront/auth/login/phone' -H 'Content-Type: application/json' -d '{"phone":"+911234567890","password":"Secret123"}'
+  Sample Response: { "token":"jwt-token","user": { "id":"U124","phone":"+911234567890","role":"customer" } }
+
+- Login (generic):
+curl -X POST 'http://localhost:8081/api/storefront/auth/login' -H 'Content-Type: application/json' -d '{"email":"alice@example.com","password":"Secret123"}'
+  Sample Response: { "token":"jwt-token","user": { "id":"U123","email":"alice@example.com","role":"customer" } }
+
+ - Send OTP (phone):
+curl -X POST 'http://localhost:8081/api/storefront/auth/otp/send' -H 'Content-Type: application/json' -d '{"phone":"+911234567890","channel":"sms"}'
+   Sample Response: { "success": true, "otpId": "OTP_abc123", "ttlSeconds": 300 }
+
+ - Verify OTP:
+curl -X POST 'http://localhost:8081/api/storefront/auth/otp/verify' -H 'Content-Type: application/json' -d '{"phone":"+911234567890","otp":"123456"}'
+   Sample Response: { "token":"jwt-token","user": { "id":"U124","phone":"+911234567890","role":"customer" } }
+
+ - Resend OTP:
+curl -X POST 'http://localhost:8081/api/storefront/auth/otp/resend' -H 'Content-Type: application/json' -d '{"phone":"+911234567890","otpId":"OTP_abc123"}'
+   Sample Response: { "success": true }
+
+- Profile:
+curl -X GET 'http://localhost:8081/api/storefront/auth/profile' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "id":"U123","name":"Alice","role":"customer" }
+
+Role Management (Storefront)
+- Grant seller role to current user:
+curl -X POST 'http://localhost:8081/api/storefront/auth/roles/grant' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer TOKEN' \
+  -H 'X-Tenant-Domain: TENANT' \
+  -d '{"role":"seller","source":"seller_registration"}'
+  Sample Response: { "success": true, "user": { "id":"U123","role":"seller" } }
+
+- Confirm role via profile:
+curl -X GET 'http://localhost:8081/api/storefront/auth/profile' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "id":"U123","role":"seller" }
+
+Products & Categories (Storefront)
+- List products:
+curl -X GET 'http://localhost:8081/api/storefront/products?search=milk&category=dairy&storeId=STORE123' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"P1","name":"Milk","price":45 } ]
+
+- Get product:
+curl -X GET 'http://localhost:8081/api/storefront/products/P1' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "id":"P1","name":"Milk","price":45 }
+
+- Categories (global):
+curl -X GET 'http://localhost:8081/api/categories'
+  Sample Response: [ "dairy", "grocery", "bakery" ]
+
+- Categories (storefront):
+curl -X GET 'http://localhost:8081/api/storefront/categories' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ "dairy", "grocery" ]
+
+Stores & Store Products (Storefront)
+- List stores:
+curl -X GET 'http://localhost:8081/api/stores?search=mart&category=grocery' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"S1","name":"Smart Mart" } ]
+
+- Get store:
+curl -X GET 'http://localhost:8081/api/stores/S1' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "id":"S1","name":"Smart Mart","city":"Indore" }
+
+- Store products (legacy route):
+curl -X GET 'http://localhost:8081/api/products?storeId=S1' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"P1","name":"Milk" } ]
+
+- Store products (nested):
+curl -X GET 'http://localhost:8081/api/stores/S1/products' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"P2","name":"Bread" } ]
+
+- Store onboarding:
+curl -X POST 'http://localhost:8081/api/stores' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"name":"Hotel Sunrise","city":"Bhopal","category":"hospitality","address":"Main Rd","phone":"99999","pincode":"462001"}'
+  Sample Response: { "id":"S2","name":"Hotel Sunrise","category":"hospitality" }
+
+Cart
+- Get cart:
+curl -X GET 'http://localhost:8081/store/cart' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"P1","name":"Milk","price":45,"quantity":2 } ]
+
+- Add to cart:
+curl -X POST 'http://localhost:8081/store/cart/add' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"id":"P1","name":"Milk","price":45,"quantity":1}'
+  Sample Response: [ { "id":"P1","name":"Milk","price":45,"quantity":3 } ]
+
+- Remove from cart:
+curl -X DELETE 'http://localhost:8081/store/cart/P1' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ ]
+
+Payments (Storefront)
+- Create order:
+curl -X POST 'http://localhost:8081/api/storefront/payments/create-order' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"amount":499,"currency":"INR"}'
+  Sample Response: { "id":"order_ABC","amount":499 }
+
+- Verify payment:
+curl -X POST 'http://localhost:8081/api/storefront/payments/verify' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"razorpay_order_id":"order_ABC","razorpay_payment_id":"pay_XYZ","razorpay_signature":"sig123"}'
+  Sample Response: { "status":"ok" }
+
+Checkout, Orders, Bookings (Storefront)
+- Checkout:
+curl -X POST 'http://localhost:8081/api/storefront/checkout' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"items":[{"id":"P1","name":"Milk","price":45,"quantity":2}],"totals":{"payable":90},"paymentMethod":"cod","address":{"line1":"123 Street"}}'
+  Sample Response: { "success":true, "order": { "id":"O1","status":"created" } }
+
+- List orders:
+curl -X GET 'http://localhost:8081/api/storefront/orders' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"O1","status":"created","total":90 } ]
+
+- List bookings:
+curl -X GET 'http://localhost:8081/api/storefront/bookings' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"B1","type":"room_booking","status":"confirmed" } ]
+
+Hospitality Availability
+- Check availability:
+curl -X GET 'http://localhost:8081/api/availability?storeId=S2&roomId=R1&checkIn=2025-12-10&checkOut=2025-12-12&guests=2' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "available":true, "nights":2, "total":2999 }
+
+External (Nominatim)
+- Reverse geocode:
+  curl -X GET 'https://nominatim.openstreetmap.org/reverse?format=json&lat=22.7196&lon=75.8577&zoom=10&addressdetails=1'
+  Sample Response: { "address": { "city":"Indore","state":"Madhya Pradesh" } }
+
+Seller Auth
+- Register:
+curl -X POST 'http://localhost:8081/api/auth/seller/register' -H 'Content-Type: application/json' -d '{"name":"Bob","email":"bob@shop.com","phone":"99999","password":"Secret123","businessType":"grocery"}'
+  Sample Response: { "token":"jwt-token","user": { "id":"SU1","role":"seller" } }
+
+- Login:
+curl -X POST 'http://localhost:8081/api/auth/seller/login' -H 'Content-Type: application/json' -d '{"email":"bob@shop.com","password":"Secret123"}'
+  Sample Response: { "token":"jwt-token","user": { "id":"SU1","role":"seller" } }
+
+Seller Stores
+- List stores:
+curl -X GET 'http://localhost:8081/api/seller/stores?search=shop&page=1&pageSize=10' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"S10","name":"Bob Shop" } ]
+
+- Create store (JSON):
+curl -X POST 'http://localhost:8081/api/seller/stores' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"name":"Bob Shop","city":"Indore","category":"grocery"}'
+  Sample Response: { "id":"S10","name":"Bob Shop" }
+
+- Create store (FormData):
+curl -X POST 'http://localhost:8081/api/seller/stores' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -F 'name=Bob Shop' -F 'city=Indore' -F 'category=grocery' -F 'imageFile=@/path/to/logo.jpg'
+  Sample Response: { "id":"S10","name":"Bob Shop" }
+
+- Update store:
+curl -X PATCH 'http://localhost:8081/api/seller/stores/S10' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"description":"24x7 store"}'
+  Sample Response: { "id":"S10","description":"24x7 store" }
+
+Seller Products
+- List products:
+curl -X GET 'http://localhost:8081/api/seller/stores/S10/products?search=milk&category=dairy&page=1&pageSize=20' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"P100","name":"Milk","price":45 } ]
+
+- Create product (FormData):
+curl -X POST 'http://localhost:8081/api/seller/stores/S10/products' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -F 'name=Milk' -F 'price=45' -F 'description=Fresh milk' -F 'category=dairy' -F 'imageFile=@/path/to/milk.jpg'
+  Sample Response: { "id":"P100","name":"Milk","price":45 }
+
+- Create product (JSON):
+curl -X POST 'http://localhost:8081/api/seller/stores/S10/products' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"name":"Curd","price":60,"description":"Fresh curd","category":"dairy"}'
+  Sample Response: { "id":"P101","name":"Curd","price":60 }
+
+- Update product:
+curl -X PATCH 'http://localhost:8081/api/seller/products/P100' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"price":50,"active":true}'
+  Sample Response: { "id":"P100","price":50,"active":true }
+
+- Delete product:
+curl -X DELETE 'http://localhost:8081/api/seller/products/P100' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "success": true }
+
+- Update inventory:
+curl -X PATCH 'http://localhost:8081/api/seller/products/P100/inventory' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"stock":100,"threshold":10}'
+  Sample Response: { "id":"P100","stock":100,"threshold":10 }
+
+Seller Orders
+- List orders:
+curl -X GET 'http://localhost:8081/api/seller/orders?from=2025-11-01&to=2025-11-10&status=processing&page=1&pageSize=10' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"O200","status":"processing","total":999 } ]
+
+- Get order:
+curl -X GET 'http://localhost:8081/api/seller/orders/O200' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "id":"O200","status":"processing","items":[{"id":"P100","qty":2}] }
+
+- Update order status:
+curl -X PATCH 'http://localhost:8081/api/seller/orders/O200/status' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"status":"shipped","note":"Packed and dispatched"}'
+  Sample Response: { "id":"O200","status":"shipped" }
+
+- Request refund:
+curl -X POST 'http://localhost:8081/api/seller/orders/O200/refunds' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"amount":200,"reason":"Damaged","items":[{"id":"P100","qty":1}]}'
+  Sample Response: { "success":true, "orderId":"O200" }
+
+Seller Bookings
+- List bookings:
+curl -X GET 'http://localhost:8081/api/seller/bookings?from=2025-12-01&to=2025-12-05&status=confirmed&page=1&pageSize=10' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"B300","type":"room_booking","status":"confirmed" } ]
+
+- Get booking:
+curl -X GET 'http://localhost:8081/api/seller/bookings/B300' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "id":"B300","type":"room_booking","guest": { "name":"Alice" } }
+
+- Update booking status:
+curl -X PATCH 'http://localhost:8081/api/seller/bookings/B300/status' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"status":"checked_in","note":"Arrived at 3PM"}'
+  Sample Response: { "id":"B300","status":"checked_in" }
+
+Seller Payouts & Config
+- List payouts:
+curl -X GET 'http://localhost:8081/api/seller/payouts' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: [ { "id":"PY1","amount":1500,"status":"paid" } ]
+
+- Request payout:
+curl -X POST 'http://localhost:8081/api/seller/payouts/request' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"amount":2500,"upiId":"alice@upi","period":"weekly"}'
+  Sample Response: { "success":true, "id":"REQ9" }
+
+- Get payout config:
+curl -X GET 'http://localhost:8081/api/seller/payouts/config' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "method":"upi","upiId":"alice@upi","minThreshold":500 }
+
+- Update payout config:
+curl -X PATCH 'http://localhost:8081/api/seller/payouts/config' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"method":"bank","bank":"HDFC","accountNumber":"1234567890","ifsc":"HDFC0001234"}'
+  Sample Response: { "method":"bank","bank":"HDFC" }
+
+Seller Analytics
+- Overview:
+curl -X GET 'http://localhost:8081/api/seller/analytics/overview?from=2025-11-01&to=2025-11-07&granularity=day' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT'
+  Sample Response: { "totals": { "orders": 12, "revenue": 12999 }, "series": [ { "x":"2025-11-01","y":1999 } ] }
+
+Seller Announcements
+- Post announcement:
+curl -X POST 'http://localhost:8081/api/seller/announcements' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -H 'X-Tenant-Domain: TENANT' -d '{"title":"Diwali Sale","message":"Flat 20% off","targets":["S10"]}'
+  Sample Response: { "id":"ANN1","success":true }
+
+Platform Products (Admin)
+- List products:
+curl -X GET 'http://localhost:8081/api/platform/products?search=milk&storeId=S10&category=dairy&page=1&pageSize=20' -H 'Authorization: Bearer TOKEN'
+  Sample Response: [ { "id":"P100","name":"Milk","storeId":"S10" } ]
+
+- Create product:
+curl -X POST 'http://localhost:8081/api/platform/products' -H 'Content-Type: application/json' -H 'Authorization: Bearer TOKEN' -d '{"name":"Paneer","price":120,"description":"Fresh paneer","category":"dairy","storeId":"S10"}'
+  Sample Response: { "id":"P101","name":"Paneer","price":120 }

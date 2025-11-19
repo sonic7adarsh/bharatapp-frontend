@@ -13,5 +13,24 @@ import { AuthContext } from '../context/AuthContext'
  * - loading: Boolean indicating if auth state is loading
  */
 export default function useAuth() {
-  return useContext(AuthContext)
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
+    // Safe fallback to avoid destructuring errors when provider isn't mounted yet
+    return {
+      token: null,
+      user: null,
+      login: async () => ({ success: false, error: 'Auth not initialized' }),
+      loginWithPhone: async () => ({ success: false, error: 'Auth not initialized' }),
+      loginWithToken: () => ({ success: false, error: 'Auth not initialized' }),
+      logout: () => {},
+      register: async () => ({ success: false, error: 'Auth not initialized' }),
+      isAuthenticated: false,
+      role: '',
+      isSeller: false,
+      isAdmin: false,
+      isConsumer: false,
+      loading: false,
+    }
+  }
+  return ctx
 }

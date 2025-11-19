@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <!-- Pin background -->
+  <path d="M12 2C8.686 2 6 4.686 6 8c0 4.5 6 10 6 10s6-5.5 6-10c0-3.314-2.686-6-6-6z" fill="url(#g)"/>
+  <!-- Bag -->
+  <path d="M9 11h6a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" fill="#ffffff" stroke="#1f2937" stroke-width="1.5"/>
+  <!-- Bag handle -->
+  <path d="M9 11c0-1.657 1.567-3 3.5-3S16 9.343 16 11" stroke="#1f2937" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+</svg>

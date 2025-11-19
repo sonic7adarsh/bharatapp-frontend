@@ -14,15 +14,24 @@ export function AuthProvider({ children }) {
     const initializeAuth = async () => {
       if (token) {
         localStorage.setItem('token', token)
-        try {
-          // Fetch user profile if token exists
-          const data = await authService.profile()
-          setUser(data)
-        } catch (error) {
-          console.error('Failed to fetch user profile:', error)
-          // If token is invalid, clear it
-          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            logout()
+        // Skip profile fetch when using mock tokens; trust local user
+        const isMock = typeof token === 'string' && token.startsWith('mock')
+        if (isMock) {
+          try {
+            const raw = localStorage.getItem('user')
+            if (raw) setUser(JSON.parse(raw))
+          } catch {}
+        } else {
+          try {
+            // Fetch user profile if token exists
+            const data = await authService.profile()
+            setUser(data)
+          } catch (error) {
+            console.error('Failed to fetch user profile:', error)
+            // If token is invalid, clear it
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+              logout()
+            }
           }
         }
       } else {
@@ -34,6 +43,12 @@ export function AuthProvider({ children }) {
 
     initializeAuth()
   }, [token])
+
+  // Expose a global logout hook for non-React callers (e.g., axios interceptors)
+  useEffect(() => {
+    window.__logout = logout
+    return () => { delete window.__logout }
+  }, [])
 
   // Login function that accepts credentials and returns user data
   const login = async (credentials) => {
@@ -50,6 +65,34 @@ export function AuthProvider({ children }) {
         error: error.response?.data?.message || 'Login failed. Please try again.'
       }
     }
+  }
+
+  // Login with phone/OTP and update context immediately
+  const loginWithPhone = async (payload) => {
+    try {
+      const data = await authService.loginWithPhone(payload)
+      const { token: newToken, user: userData } = data
+      setToken(newToken)
+      setUser(userData)
+      return { success: true, user: userData }
+    } catch (error) {
+      console.error('Phone login failed:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Login failed. Please try again.'
+      }
+    }
+  }
+
+  // Directly set token and user after an external auth call
+  const loginWithToken = ({ token: newToken, user: userData }) => {
+    try {
+      if (newToken) localStorage.setItem('token', newToken)
+      if (userData) localStorage.setItem('user', JSON.stringify(userData))
+    } catch {}
+    setToken(newToken || null)
+    setUser(userData || null)
+    return { success: true, user: userData }
   }
 
   // Logout function that clears token and user data
@@ -84,9 +127,16 @@ export function AuthProvider({ children }) {
       token, 
       user, 
       login, 
+      loginWithPhone,
+      loginWithToken,
       logout, 
       register, 
       isAuthenticated,
+      // role helpers
+      role: String(user?.role || '').toLowerCase(),
+      isSeller: ['seller','vendor'].includes(String(user?.role || '').toLowerCase()),
+      isAdmin: String(user?.role || '').toLowerCase() === 'admin',
+      isConsumer: ['customer','consumer'].includes(String(user?.role || '').toLowerCase()),
       loading
     }}>
       {children}
