@@ -10,7 +10,7 @@ export function seedSampleOrdersIfEmpty() {
     const sampleOrders = [
       {
         id: 'order_1001',
-        reference: 'MOCK-100001',
+        reference: 'ORD-100001',
         status: 'delivered',
         total: 799,
         createdAt: '2024-10-01T10:15:00.000Z',
@@ -22,7 +22,7 @@ export function seedSampleOrdersIfEmpty() {
       },
       {
         id: 'order_1002',
-        reference: 'MOCK-100002',
+        reference: 'ORD-100002',
         status: 'shipped',
         total: 1299,
         createdAt: '2024-10-03T14:30:00.000Z',
@@ -34,7 +34,7 @@ export function seedSampleOrdersIfEmpty() {
       },
       {
         id: 'order_1003',
-        reference: 'MOCK-100003',
+        reference: 'ORD-100003',
         status: 'processing',
         total: 499,
         createdAt: '2024-10-05T09:00:00.000Z',

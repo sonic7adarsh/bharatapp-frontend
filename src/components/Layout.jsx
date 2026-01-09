@@ -42,6 +42,7 @@ export default function Layout({ children }) {
         </div>
       </main>
       <FloatingCartButton />
+      
       <Footer />
     </div>
   )

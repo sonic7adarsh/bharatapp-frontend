@@ -438,6 +438,7 @@ export default function Header() {
               ) : (
                 <>
               <Link to={'/mobile-login'} className="px-3 lg:px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primaryDark transition-colors">{t('nav.login', 'Login')}</Link>
+              <Link to={'/seller-register'} className="px-3 lg:px-4 py-2 text-sm font-medium text-brand-primary border border-brand-primary rounded-md hover:bg-brand-primary hover:text-white transition-colors">{t('nav.register_seller', 'Register as Seller')}</Link>
                 </>
               )}
             </div>
@@ -516,6 +517,9 @@ export default function Header() {
                 <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
                   <Link to={'/mobile-login'} className="block px-3 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primaryDark rounded-md transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/mobile-login') ? 'page' : undefined}>
                     🔑 {t('nav.login', 'Login')}
+                  </Link>
+                  <Link to={'/seller-register'} className="block px-3 py-3 text-base font-medium text-brand-primary border border-brand-primary rounded-md hover:bg-brand-primary hover:text-white transition-colors touch-manipulation" aria-current={location.pathname.startsWith('/seller-register') ? 'page' : undefined}>
+                    🏪 {t('nav.register_seller', 'Register as Seller')}
                   </Link>
         </div>
       )}

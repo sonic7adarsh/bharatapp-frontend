@@ -47,6 +47,40 @@ const storeService = {
       return []
     }
   },
+
+  async getZones(params = undefined, config = undefined) {
+    try {
+      const tryApi = await api.get('/api/zones', config ?? (params ? { params } : undefined))
+      return Array.isArray(tryApi?.data) ? tryApi.data : []
+    } catch (e) {
+      if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') {
+        return []
+      }
+      console.error('getZones failed:', e)
+      return []
+    }
+  },
+
+  async checkServiceability(latitude, longitude) {
+    try {
+      const response = await api.post('/api/zones/check-serviceability', { latitude, longitude })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Serviceability check failed')
+    }
+  },
+
+  async getServiceableStores(latitude, longitude) {
+    try {
+      const response = await api.get('/api/zones/serviceable-stores', { 
+        params: { latitude, longitude } 
+      })
+      return Array.isArray(response?.data) ? response.data : []
+    } catch (error) {
+      console.error('getServiceableStores failed:', error)
+      return []
+    }
+  },
   async getStore(id, config = undefined) {
     // Serve from cache if available and fresh
     const cached = getWithTtl(storeCache, id)

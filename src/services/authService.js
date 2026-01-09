@@ -1,300 +1,115 @@
-import axios from '../lib/axios'
-import { generateUser } from '../lib/mock'
-
-// Toggle for seller auth mock mode. Defaults to true for local/dev.
-const USE_MOCK_SELLER_AUTH = (import.meta.env?.VITE_USE_MOCK_SELLER_AUTH ?? 'true') === 'true'
-// Allow dev OTP acceptance even when backend responds with an error (local/dev only)
-const ALLOW_DEV_OTP = (import.meta.env?.VITE_ALLOW_DEV_OTP ?? 'true') === 'true'
+import api from '../lib/axios'
 
 const authService = {
-  // OTP: send, verify, resend for mobile login
-  async sendOTP({ phone, channel = 'sms' }) {
+  async sendOTP(phone) {
     try {
-      const { data } = await axios.post('/api/storefront/auth/otp/send', { phone, channel })
-      // Persist session on success as well (align resend to use same otpId)
-      try {
-        const ttlSeconds = Number(data?.ttlSeconds || 300)
-        const expiresAt = Date.now() + ttlSeconds * 1000
-        const otpId = data?.otpId
-        if (otpId) {
-          const session = { otpId, phone, ttlSeconds, expiresAt }
-          localStorage.setItem('otpSession', JSON.stringify(session))
-        }
-      } catch {}
-      return data
-    } catch (e) {
-      // Fallback on network/connection errors or when dev toggle allows
-      if (e && e.response && !ALLOW_DEV_OTP) throw e
-      // Fallback: create a local OTP session
-      const otpId = `OTP_${Date.now()}`
-      const ttlSeconds = 300
-      const expiresAt = Date.now() + ttlSeconds * 1000
-      const session = { otpId, phone, ttlSeconds, expiresAt }
-      try { localStorage.setItem('otpSession', JSON.stringify(session)) } catch {}
-      return { success: true, otpId, ttlSeconds }
-    }
-  },
-  async verifyOTP({ phone, otp, intent, role }) {
-    try {
-      const { data } = await axios.post('/api/storefront/auth/otp/verify', { phone, otp })
-      return data
-    } catch (e) {
-      // Fallback on network/connection errors or when dev toggle allows
-      if (e && e.response && !ALLOW_DEV_OTP) throw e
-      // Fallback: accept common dev OTPs or valid local session
-      let session = null
-      try {
-        const raw = localStorage.getItem('otpSession')
-        if (raw) session = JSON.parse(raw)
-      } catch {}
-
-      const isDevOtp = otp === '123456' || otp === '000000'
-      const isSessionValid = session && session.phone === phone && session.expiresAt > Date.now()
-      if (!isDevOtp && !isSessionValid) throw e
-
-      // Build a mock token/user, preserving role intent when provided
-      let existing = null
-      try {
-        const rawUser = localStorage.getItem('user')
-        if (rawUser) existing = JSON.parse(rawUser)
-      } catch {}
-      const base = generateUser()
-      const nextRole = role ? String(role).toLowerCase() : String(existing?.role || base.role).toLowerCase()
-      const user = {
-        ...(existing || base),
-        role: nextRole,
-        phone: phone || existing?.phone || undefined,
+      // Handle both object and parameter formats
+      let phoneNumber
+      if (typeof phone === 'object') {
+        phoneNumber = phone.phone || phone.phoneNumber
+      } else {
+        phoneNumber = phone
       }
-      const token = `mock-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
+      
+      console.log('Using real API for sendOTP:', phoneNumber)
+      const response = await api.post('/api/mobile-auth/send-otp', { phone: phoneNumber })
+      return response.data
+    } catch (error) {
+      console.error('sendOTP error:', error)
+      throw new Error(error.response?.data?.error || 'Failed to send OTP')
     }
   },
-  async resendOTP({ phone, otpId }) {
+
+  async verifyOTP(phone, otp) {
     try {
-      const { data } = await axios.post('/api/storefront/auth/otp/resend', { phone, otpId })
-      // Update session with new otpId/ttl on success
-      try {
-        const ttlSeconds = Number(data?.ttlSeconds || 300)
-        const expiresAt = Date.now() + ttlSeconds * 1000
-        const nextOtpId = data?.otpId || otpId
-        const session = { otpId: nextOtpId, phone, ttlSeconds, expiresAt }
-        localStorage.setItem('otpSession', JSON.stringify(session))
-      } catch {}
-      return data
-    } catch (e) {
-      // Fallback on network/connection errors or when dev toggle allows
-      if (e && e.response && !ALLOW_DEV_OTP) throw e
-      // Fallback: rotate otpId and extend TTL
-      const newOtpId = `OTP_${Date.now()}`
-      const ttlSeconds = 300
-      const expiresAt = Date.now() + ttlSeconds * 1000
-      const session = { otpId: newOtpId, phone, ttlSeconds, expiresAt }
-      try { localStorage.setItem('otpSession', JSON.stringify(session)) } catch {}
-      return { success: true, otpId: newOtpId, ttlSeconds }
-    }
-  },
-  async register(payload) {
-    try {
-      const { data } = await axios.post('/api/storefront/auth/register', payload)
-      return data
-    } catch (e) {
-      const base = generateUser()
-      const user = {
-        ...base,
-        // Prefer provided details from registration form
-        name: payload?.name || base.name,
-        email: payload?.email || base.email,
-        role: (payload?.role ? String(payload.role).toLowerCase() : base.role)
+      // Handle both object and parameter formats
+      let phoneNumber, otpCode
+      if (typeof phone === 'object') {
+        phoneNumber = phone.phone
+        otpCode = phone.otp
+      } else {
+        phoneNumber = phone
+        otpCode = otp
       }
-      const token = `mock-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
+      
+      console.log('Using real API for verifyOTP:', { phone: phoneNumber, otp: otpCode })
+      const response = await api.post('/api/mobile-auth/verify-otp', { phone: phoneNumber, otp: otpCode })
+      return response.data
+    } catch (error) {
+      console.error('verifyOTP error:', error)
+      throw new Error(error.response?.data?.error || 'Failed to verify OTP')
     }
   },
-  async login(payload) {
+
+  async register(userData) {
     try {
-      const { data } = await axios.post('/api/storefront/auth/login', payload)
-      return data
-    } catch (e) {
-      const user = generateUser()
-      const token = `mock-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
+      const response = await api.post('/api/auth/register', userData)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Registration failed')
     }
   },
-  async loginWithEmail(payload) {
+
+  async login(email, password) {
     try {
-      const { data } = await axios.post('/api/storefront/auth/login/email', payload)
-      return data
-    } catch (e) {
-      const base = generateUser()
-      const nextRole = (payload?.role ? String(payload.role).toLowerCase() : String(base.role).toLowerCase())
-      const user = { ...base, role: nextRole }
-      const token = `mock-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
+      const response = await api.post('/api/auth/login', { email, password })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Login failed')
     }
   },
+
+  async loginWithEmail(credentials) {
+    try {
+      const response = await api.post('/api/auth/login', credentials)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Login failed')
+    }
+  },
+
   async loginWithPhone(payload) {
     try {
-      const { data } = await axios.post('/api/storefront/auth/login/phone', payload)
-      return data
-    } catch (e) {
-      // Preserve existing role if present; otherwise allow payload role or default
-      let existing = null
-      try {
-        const raw = localStorage.getItem('user')
-        if (raw) existing = JSON.parse(raw)
-      } catch {}
-      const base = generateUser()
-      const nextRole = (payload?.role ? String(payload.role).toLowerCase() : String(existing?.role || base.role).toLowerCase())
-      const user = {
-        ...(existing || base),
-        role: nextRole,
-        phone: payload?.phone || existing?.phone || undefined,
-      }
-      const token = `mock-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
-    }
-  },
-  // Seller-specific registration
-  async sellerRegister({ name, email, phone, password, businessType }) {
-    // Short-circuit to mock mode when enabled
-    if (USE_MOCK_SELLER_AUTH) {
-      const user = {
-        ...generateUser(),
-        id: `seller_${Date.now()}`,
-        name,
-        email,
-        phone,
-        role: 'seller',
-        businessType,
-      }
-      const token = `mock-seller-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
-    }
-    try {
-      const { data } = await axios.post('/api/auth/seller/register', {
-        name,
-        email,
-        phone,
-        password,
-        businessType,
-      })
-      const token = data?.token
-      const sellerId = data?.sellerId
-      const user = data?.user || {
-        id: sellerId,
-        name,
-        email,
-        phone,
-        role: 'seller',
-        businessType,
-      }
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
-    } catch (e) {
-      const user = {
-        ...generateUser(),
-        name,
-        email,
-        phone,
-        role: 'seller',
-        businessType,
-      }
-      const token = `mock-seller-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
+      const response = await api.post('/api/mobile-auth/verify-otp', payload)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Phone login failed')
     }
   },
 
-  // Seller-specific login
-  async sellerLogin({ email, phone, password }) {
-    // Short-circuit to mock mode when enabled
-    if (USE_MOCK_SELLER_AUTH) {
-      const user = {
-        ...generateUser(),
-        id: `seller_${Date.now()}`,
-        email,
-        phone,
-        role: 'seller',
-      }
-      const token = `mock-seller-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
-    }
+  async getProfile() {
     try {
-      const payload = email ? { email, password } : { phone, password }
-      const { data } = await axios.post('/api/auth/seller/login', payload)
-      const token = data?.token
-      const sellerId = data?.sellerId
-      const user = data?.user || {
-        id: sellerId,
-        email,
-        phone,
-        role: 'seller',
-      }
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
-    } catch (e) {
-      if (!password) throw e
-      const user = {
-        ...generateUser(),
-        email,
-        phone,
-        role: 'seller',
-      }
-      const token = `mock-seller-${Date.now()}`
-      try {
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch {}
-      return { token, user }
+      const response = await api.get('/api/auth/profile')
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch profile')
     }
   },
-  async profile() {
+
+  async updateProfile(data) {
     try {
-      const { data } = await axios.get('/api/storefront/auth/profile')
-      return data
-    } catch (e) {
-      try {
-        const saved = localStorage.getItem('user')
-        if (saved) return JSON.parse(saved)
-      } catch {}
-      return generateUser()
+      const response = await api.patch('/api/auth/profile', data)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to update profile')
+    }
+  },
+
+  async addAddress(address) {
+    try {
+      const response = await api.post('/api/auth/addresses', address)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to add address')
+    }
+  },
+
+  async getAddresses() {
+    try {
+      const response = await api.get('/api/auth/addresses')
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch addresses')
     }
   }
 }

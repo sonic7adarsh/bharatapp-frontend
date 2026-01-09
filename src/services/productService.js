@@ -1,45 +1,76 @@
-import axios from '../lib/axios'
+import api from '../lib/axios'
 
 const productService = {
   async getProducts(params = {}) {
     try {
-      const { data } = await axios.get('/api/storefront/products', { params })
-      return Array.isArray(data) ? data : []
-    } catch (e) {
-      console.error('getProducts failed:', e)
+      const response = await api.get('/api/products', { params })
+      return Array.isArray(response.data) ? response.data : []
+    } catch (error) {
+      console.error('getProducts failed:', error)
       return []
     }
   },
+
   async getProductById(id) {
     try {
-      const { data } = await axios.get(`/api/storefront/products/${id}`)
-      return data
-    } catch (e) {
-      console.error('getProductById failed:', e)
+      const response = await api.get(`/api/products/${id}`)
+      return response.data
+    } catch (error) {
+      console.error('getProductById failed:', error)
       return null
     }
   },
-  async getCategories() {
-    // Try primary REST API, then legacy path, then public JSON, then mock
-    const normalize = (arr) => {
-      const list = Array.isArray(arr) ? arr : []
-      const cleaned = list
-        .map((c) => (typeof c === 'string' ? c.trim() : String(c?.name || c?.label || '').trim()))
-        .filter((c) => !!c)
-      // Deduplicate and sort for stable UX
-      return Array.from(new Set(cleaned)).sort((a, b) => a.localeCompare(b))
+
+  async createProduct(productData) {
+    try {
+      const response = await api.post('/api/products', productData, {
+        showSuccessToast: true,
+        successMessage: 'Product created successfully!'
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to create product')
     }
+  },
+
+  async updateProductInventory(productId, stock) {
     try {
-      const { data } = await axios.get('/api/categories')
-      const primary = normalize(data)
-      if (primary.length) return primary
-    } catch {}
+      const response = await api.patch(`/api/products/${productId}/inventory`, { stock })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to update inventory')
+    }
+  },
+
+  async bulkUpdateInventory(updates) {
     try {
-      const { data } = await axios.get('/api/storefront/categories')
-      const legacy = normalize(data)
-      if (legacy.length) return legacy
-    } catch {}
-    return []
+      const response = await api.patch('/api/products/bulk-inventory', { updates })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to update inventory')
+    }
+  },
+
+  async getLowStockProducts(params = {}) {
+    try {
+      const response = await api.get('/api/products/low-stock', { params })
+      return Array.isArray(response.data) ? response.data : []
+    } catch (error) {
+      console.error('getLowStockProducts failed:', error)
+      return []
+    }
+  },
+
+  async getCategories() {
+    // Get unique categories from products
+    try {
+      const products = await this.getProducts()
+      const categories = [...new Set(products.map(p => p.category))]
+      return categories.sort()
+    } catch (error) {
+      console.error('getCategories failed:', error)
+      return []
+    }
   }
 }
 

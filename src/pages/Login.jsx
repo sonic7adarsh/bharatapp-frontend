@@ -135,9 +135,7 @@ export default function Login() {
           </Link>
         </div>
         
-        <p className="mt-4 text-center text-gray-600">
-          Don't have an account? <Link to="/register" className="link-brand">Register</Link>
-        </p>
+
       </div>
     </PageFade>
   )

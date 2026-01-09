@@ -1,51 +1,91 @@
-import axios from '../lib/axios'
-import { generateOrders } from '../lib/mock'
+import api from '../lib/axios'
 
 const orderService = {
-  async checkout(payload) {
+  async createOrder(payload) {
     try {
-      const { data } = await axios.post('/api/storefront/checkout', payload, { showSuccessToast: true, successMessage: 'Order placed.' })
-      return data
-    } catch (e) {
-      // Backend-only: do not fabricate local orders/bookings
-      throw e
+      const response = await api.post('/api/orders', payload, { 
+        showSuccessToast: true, 
+        successMessage: 'Order placed successfully!' 
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to place order')
     }
   },
-  async getOrders(params = {}) {
+
+  async getCustomerOrders(params = {}) {
     try {
-      const { data } = await axios.get('/api/storefront/orders', { params })
-      return data
-    } catch (e) {
-      // Backend-only: return empty array on failure
-      return []
+      const response = await api.get('/api/orders/customer', { params })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch orders')
     }
   },
-  async getOrderById(idOrRef) {
+
+  async getStoreOrders(params = {}) {
     try {
-      const id = encodeURIComponent(String(idOrRef))
-      const { data } = await axios.get(`/api/storefront/orders/${id}`)
-      return data
-    } catch (e) {
-      return null
+      const response = await api.get('/api/orders/store', { params })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch store orders')
     }
   },
-  async getBookings(params = {}) {
+
+  async getOrderById(orderId) {
     try {
-      // Accept pagination and filter params to align with backend envelope
-      const { data } = await axios.get('/api/storefront/bookings', { params })
-      return data
-    } catch (e) {
-      // Backend-only: return empty array on failure
-      return []
+      const response = await api.get(`/api/orders/${orderId}`)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch order details')
     }
   },
-  async getBookingById(idOrRef) {
+
+  async updateOrderStatus(orderId, status, note) {
     try {
-      const id = encodeURIComponent(String(idOrRef))
-      const { data } = await axios.get(`/api/storefront/bookings/${id}`)
-      return data
-    } catch (e) {
-      return null
+      const response = await api.patch(`/api/orders/${orderId}/status`, { status, note })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to update order status')
+    }
+  },
+
+  async cancelOrder(orderId, reason) {
+    try {
+      const response = await api.patch(`/api/orders/${orderId}/cancel`, { reason }, {
+        showSuccessToast: true,
+        successMessage: 'Order cancelled successfully'
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to cancel order')
+    }
+  },
+
+  // Rider-specific endpoints
+  async getPendingOrdersForRider(params = {}) {
+    try {
+      const response = await api.get('/api/orders/pending/rider', { params })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch pending orders')
+    }
+  },
+
+  async acceptOrderByRider(orderId) {
+    try {
+      const response = await api.patch(`/api/riders/orders/${orderId}/accept`)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to accept order')
+    }
+  },
+
+  async updateRiderOrderStatus(orderId, status, note) {
+    try {
+      const response = await api.patch(`/api/riders/orders/${orderId}/status`, { status, note })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to update rider order status')
     }
   }
 }

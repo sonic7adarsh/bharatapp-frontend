@@ -6,7 +6,6 @@ import authService from '../services/authService'
 export default function SellerRegister() {
   const navigate = useNavigate()
   const { loginWithToken } = useAuth()
-  const USE_MOCK_SELLER_AUTH = (import.meta.env?.VITE_USE_MOCK_SELLER_AUTH ?? 'true') === 'true'
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -54,12 +53,6 @@ export default function SellerRegister() {
       try {
         const latest = await authService.profile()
         loginWithToken({ token, user: latest })
-        const role = String(latest?.role || '').toLowerCase()
-        if (USE_MOCK_SELLER_AUTH && !['seller','vendor'].includes(role)) {
-          try { localStorage.setItem('sellerUpgradeIntent', 'true') } catch {}
-          const override = { ...(latest || {}), role: 'seller' }
-          loginWithToken({ token, user: override })
-        }
       } catch (e) {
         console.debug('Profile refresh after seller registration failed:', e)
       }

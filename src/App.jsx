@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense, lazy, useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -35,7 +35,12 @@ const AddRoom = lazy(() => import('./pages/AddRoom'))
 const SellerProducts = lazy(() => import('./pages/SellerProducts'))
 const EditStore = lazy(() => import('./pages/EditStore'))
 
+
 export default function App() {
+  useEffect(() => {
+    // Mock system removed - no longer needed
+  }, [])
+
   return (
     <Layout>
       <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
@@ -124,10 +129,11 @@ export default function App() {
             </RoleProtectedRoute>
           } />
           <Route path="/products/add-open" element={
-            <RoleProtectedRoute roles={["seller","admin"]}>
+            <ProtectedRoute roles={["seller","admin"]}>
               <AddProductPublic />
-            </RoleProtectedRoute>
+            </ProtectedRoute>
           } />
+
         </Routes>
       </Suspense>
     </Layout>

@@ -19,7 +19,7 @@ export default function Home() {
   const { isAuthenticated, isSeller, isAdmin } = useAuth()
 
   useEffect(() => {
-    // try fetching from backend; fallback to local sample data
+    // Fetch stores from backend API
     let active = true
     const controller = new AbortController()
     setLoading(true)
@@ -30,7 +30,9 @@ export default function Home() {
         setStores(Array.isArray(res) ? res : [])
       } catch (err) {
         if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
-        // Quietly ignore other errors to keep Home resilient; Logs handled by axios.
+        console.error('Failed to fetch stores:', err)
+        // Fallback to empty array on error
+        if (active) setStores([])
       } finally {
         if (active) setLoading(false)
       }

@@ -188,13 +188,7 @@ instance.interceptors.response.use(
 
     // Auto-logout on unauthorized to prevent zombie sessions
     if (status === 401) {
-      // Avoid auto-logout when using mock tokens in local/dev
-      let isMockToken = false
-      try {
-        const t = localStorage.getItem('token') || ''
-        isMockToken = typeof t === 'string' && t.startsWith('mock')
-      } catch {}
-      if (!isMockToken) {
+      if (true) {
         try { window.__announce?.('Session expired. Please login again.', 'assertive') } catch {}
         try { window.__logout?.() } catch {}
       }

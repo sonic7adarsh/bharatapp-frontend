@@ -1,5 +1,4 @@
 import axios from '../lib/axios'
-import { generateCart } from '../lib/mock'
 
 // Ensure a stable guest id for unauthenticated carts
 function getGuestId() {
@@ -30,7 +29,7 @@ const cartService = {
         const cart = Array.isArray(saved ? JSON.parse(saved) : null) ? JSON.parse(saved) : []
         if (cart.length > 0) return cart
       } catch {}
-      return generateCart()
+      return { items: [], total: 0, itemCount: 0 }
     }
   },
   async addToCart(item) {
@@ -59,7 +58,7 @@ const cartService = {
         localStorage.setItem('cart', JSON.stringify(cart))
         return cart
       } catch {
-        return generateCart()
+        return { items: [], total: 0, itemCount: 0 }
       }
     }
   },

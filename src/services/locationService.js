@@ -1,4 +1,4 @@
-import axios from '../lib/axios'
+import api from '../lib/axios'
 
 async function reverseGeocode(lat, lon) {
   try {
@@ -48,4 +48,29 @@ export async function detectCoordsViaGeolocation() {
   })
 }
 
-export default { detectCityViaGeolocation, detectCoordsViaGeolocation }
+export async function getServiceableStores(latitude, longitude) {
+  try {
+    const response = await api.get('/api/zones/serviceable-stores', {
+      params: { latitude, longitude }
+    })
+    return response.data || []
+  } catch (error) {
+    console.error('getServiceableStores failed:', error)
+    return []
+  }
+}
+
+export async function checkServiceability(latitude, longitude) {
+  try {
+    const response = await api.post('/api/zones/check-serviceability', {
+      latitude,
+      longitude
+    })
+    return response.data
+  } catch (error) {
+    console.error('checkServiceability failed:', error)
+    return { serviceable: false, error: error.message }
+  }
+}
+
+export default { detectCityViaGeolocation, detectCoordsViaGeolocation, getServiceableStores, checkServiceability }

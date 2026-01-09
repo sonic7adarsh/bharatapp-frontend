@@ -14,6 +14,8 @@ import { I18nProvider } from './context/I18nContext'
 // Seed deterministic sample orders for local development
 seedSampleOrdersIfEmpty()
 
+
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

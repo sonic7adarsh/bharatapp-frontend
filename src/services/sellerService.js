@@ -1,13 +1,12 @@
-import axios from '../lib/axios'
+import api from '../lib/axios'
 
-// Minimal seller API wrapper following conventions used elsewhere
 const sellerService = {
   // Stores owned by the seller
   async getSellerStores(params = {}) {
     try {
       // Do not default-filter to open; let caller decide visibility
       const finalParams = { ...params }
-      const { data } = await axios.get('/api/seller/stores', { params: finalParams })
+      const { data } = await api.get('/api/stores', { params: finalParams })
       // Support both array response and object-wrapped { stores: [] }
       const list = Array.isArray(data) ? data : (Array.isArray(data?.stores) ? data.stores : [])
       return list
@@ -18,7 +17,7 @@ const sellerService = {
   },
   async getSellerStore(storeId) {
     try {
-      const { data } = await axios.get(`/api/seller/stores/${storeId}`)
+      const { data } = await api.get(`/api/stores/${storeId}`)
       return data
     } catch (e) {
       console.error('getSellerStore failed:', e)
@@ -44,7 +43,7 @@ const sellerService = {
       body = formData
     }
     try {
-      const { data } = await axios.post('/api/seller/stores', body, { showSuccessToast: true, successMessage: 'Store created successfully.' })
+      const { data } = await api.post('/api/stores', body, { showSuccessToast: true, successMessage: 'Store created successfully.' })
       return data
     } catch (e) {
       console.error('createStore failed:', e)
@@ -53,7 +52,7 @@ const sellerService = {
   },
   async updateStore(storeId, payload) {
     try {
-      const { data } = await axios.patch(`/api/seller/stores/${storeId}`, payload, { showSuccessToast: true, successMessage: 'Store updated.' })
+      const { data } = await api.patch(`/api/stores/${storeId}`, payload, { showSuccessToast: true, successMessage: 'Store updated.' })
       return data
     } catch (e) {
       console.error('updateStore failed:', e)
@@ -64,7 +63,7 @@ const sellerService = {
   // Products
   async getStoreProducts(storeId, params = {}) {
     try {
-      const { data } = await axios.get(`/api/seller/stores/${storeId}/products`, { params })
+      const { data } = await api.get(`/api/stores/${storeId}/products`, { params })
       return Array.isArray(data) ? data : []
     } catch (e) {
       console.error('getStoreProducts failed:', e)
@@ -88,7 +87,7 @@ const sellerService = {
       body = rest
     }
     try {
-      const { data } = await axios.post(`/api/seller/stores/${storeId}/products`, body, { showSuccessToast: true, successMessage: 'Product added successfully.' })
+      const { data } = await api.post('/api/products', { ...payload, store: storeId }, { showSuccessToast: true, successMessage: 'Product added successfully.' })
       return data
     } catch (e) {
       console.error('createProduct failed:', e)
@@ -97,7 +96,7 @@ const sellerService = {
   },
   async updateProduct(productId, payload) {
     try {
-      const { data } = await axios.patch(`/api/seller/products/${productId}`, payload, { showSuccessToast: true, successMessage: 'Product updated.' })
+      const { data } = await api.patch(`/api/products/${productId}`, payload, { showSuccessToast: true, successMessage: 'Product updated.' })
       return data
     } catch (e) {
       console.error('updateProduct failed:', e)
@@ -106,7 +105,7 @@ const sellerService = {
   },
   async deleteProduct(productId) {
     try {
-      const { data } = await axios.delete(`/api/seller/products/${productId}`, { showSuccessToast: true, successMessage: 'Product deleted.' })
+      const { data } = await api.delete(`/api/products/${productId}`, { showSuccessToast: true, successMessage: 'Product deleted.' })
       return data
     } catch (e) {
       console.error('deleteProduct failed:', e)
@@ -115,7 +114,7 @@ const sellerService = {
   },
   async updateInventory(productId, payload) {
     try {
-      const { data } = await axios.patch(`/api/seller/products/${productId}/inventory`, payload, { showSuccessToast: true, successMessage: 'Inventory updated.' })
+      const { data } = await api.patch(`/api/products/${productId}/inventory`, payload.stock, { showSuccessToast: true, successMessage: 'Inventory updated.' })
       return data
     } catch (e) {
       console.error('updateInventory failed:', e)
@@ -126,7 +125,7 @@ const sellerService = {
   // Orders
   async getOrders(params = {}) {
     try {
-      const { data } = await axios.get('/api/seller/orders', { params })
+      const { data } = await api.get('/api/orders/store', { params })
       const list = Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []
       return list
     } catch (e) {
@@ -136,7 +135,7 @@ const sellerService = {
   },
   async getOrder(orderId) {
     try {
-      const { data } = await axios.get(`/api/seller/orders/${orderId}`)
+      const { data } = await api.get(`/api/orders/${orderId}`)
       return data
     } catch (e) {
       console.error('getOrder failed:', e)
@@ -145,7 +144,7 @@ const sellerService = {
   },
   async updateOrderStatus(orderId, payload) {
     try {
-      const { data } = await axios.patch(`/api/seller/orders/${orderId}/status`, payload, { showSuccessToast: true, successMessage: 'Order status updated.' })
+      const { data } = await api.patch(`/api/orders/${orderId}/status`, { status: payload.status, note: payload.note || '' }, { showSuccessToast: true, successMessage: 'Order status updated.' })
       return data
     } catch (e) {
       console.error('updateOrderStatus failed:', e)
@@ -154,7 +153,7 @@ const sellerService = {
   },
   async requestRefund(orderId, payload) {
     try {
-      const { data } = await axios.post(`/api/seller/orders/${orderId}/refunds`, payload, { showSuccessToast: true, successMessage: 'Refund requested.' })
+      const { data } = await api.post(`/api/orders/${orderId}/refunds`, payload, { showSuccessToast: true, successMessage: 'Refund requested.' })
       return data
     } catch (e) {
       console.error('requestRefund failed:', e)
@@ -165,7 +164,7 @@ const sellerService = {
   // Hospitality bookings
   async getBookings(params = {}) {
     try {
-      const { data } = await axios.get('/api/seller/bookings', { params })
+      const { data } = await api.get('/api/bookings/store', { params })
       return Array.isArray(data) ? data : []
     } catch (e) {
       console.error('getBookings failed:', e)
@@ -174,7 +173,7 @@ const sellerService = {
   },
   async getBooking(bookingId) {
     try {
-      const { data } = await axios.get(`/api/seller/bookings/${bookingId}`)
+      const { data } = await api.get(`/api/bookings/${bookingId}`)
       return data
     } catch (e) {
       console.error('getBooking failed:', e)
@@ -183,7 +182,7 @@ const sellerService = {
   },
   async updateBookingStatus(bookingId, payload) {
     try {
-      const { data } = await axios.patch(`/api/seller/bookings/${bookingId}/status`, payload, { showSuccessToast: true, successMessage: 'Booking status updated.' })
+      const { data } = await api.patch(`/api/bookings/${bookingId}/status`, payload, { showSuccessToast: true, successMessage: 'Booking status updated.' })
       return data
     } catch (e) {
       console.error('updateBookingStatus failed:', e)
@@ -194,7 +193,7 @@ const sellerService = {
   // Payouts & settlement
   async getPayouts() {
     try {
-      const { data } = await axios.get('/api/seller/payouts')
+      const { data } = await api.get('/api/payouts/store')
       return Array.isArray(data) ? data : []
     } catch (e) {
       console.error('getPayouts failed:', e)

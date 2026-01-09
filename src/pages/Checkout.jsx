@@ -525,25 +525,9 @@ export default function Checkout() {
         return
       }
 
-      // Fallback: mock payment
-      toast.info('Proceeding with mock payment (no gateway configured)')
-      const txid = 'PAY-' + Date.now()
-      const payload = {
-        items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, storeId: i.storeId || null, requiresPrescription: !!i.requiresPrescription })),
-        totals: { subtotal: totalPrice, discount, deliveryFee, tax: taxAmount, tip: Number(tip || 0), payable: computePayable() },
-        address,
-        deliverySlot,
-        promo,
-        deliveryInstructions,
-        prescriptions: prescriptions.map(f => ({ name: f.name, size: f.size, type: f.type })),
-        paymentMethod: 'online',
-        paymentInfo: { gateway: 'mock', status: 'success', transactionId: txid, reference: txid, method: onlineMethod }
-      }
-      const data = await orderService.checkout(payload)
-      setOrderInfo(data || { reference: 'ORDER-' + Date.now() })
-      setSuccess(true)
-      clearCart()
-      try { localStorage.removeItem('cart_requires_prescription') } catch {}
+      // Payment gateway not available
+      setError('Payment gateway not available. Please try again later.')
+      return
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to start payment. Please try again.'
       setError(message)
